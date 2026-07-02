@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0b1216;
+  --surface: #121d23;
+  --surface-hover: #182730;
+  --border: #22333c;
+  --foreground: #f2f6f7;
+  --muted: #8ca1ab;
+  --accent: #10a1b4;
+  --accent-bright: #2fc1d4;
+  --positive: #34d399;
+  --destructive: #f87171;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
