@@ -138,7 +138,9 @@ export function SpotifyWidget() {
   return (
     <Card>
       <div className="mb-4 flex shrink-0 items-center justify-between">
-        <WidgetTitle icon={Disc3}>Spotify</WidgetTitle>
+        <WidgetTitle icon={Disc3} href="https://open.spotify.com">
+          Spotify
+        </WidgetTitle>
         <div className="flex gap-1">
           <TabButton active={tab === "now"} onClick={() => setTab("now")}>
             Praegu mängib

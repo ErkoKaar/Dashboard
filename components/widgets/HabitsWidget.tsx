@@ -22,7 +22,9 @@ export function HabitsWidget() {
   return (
     <Card>
       <div className="mb-4 flex shrink-0 items-center justify-between">
-        <WidgetTitle icon={Repeat}>Habits</WidgetTitle>
+        <WidgetTitle icon={Repeat} href="https://taskzen-phi.vercel.app/tasks/habits">
+          Habits
+        </WidgetTitle>
         <div className="flex gap-1">
           <TabButton active={view === "today"} onClick={() => setView("today")}>
             Täna

@@ -220,7 +220,9 @@ export function ProjectsWidget() {
   return (
     <Card>
       <div className="mb-4 flex shrink-0 items-center justify-between">
-        <WidgetTitle icon={FolderKanban}>Projects</WidgetTitle>
+        <WidgetTitle icon={FolderKanban} href="https://taskzen-phi.vercel.app/tasks/projects">
+          Projects
+        </WidgetTitle>
         <div className="flex gap-1">
           <TabButton active={section === "projects"} onClick={() => setSection("projects")}>
             Projects

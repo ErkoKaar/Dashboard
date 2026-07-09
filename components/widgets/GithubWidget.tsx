@@ -26,7 +26,9 @@ export function GithubWidget() {
   return (
     <Card>
       <div className="mb-4 flex shrink-0 items-center justify-between">
-        <WidgetTitle icon={GitCommitHorizontal}>GitHub Contributions</WidgetTitle>
+        <WidgetTitle icon={GitCommitHorizontal} href="https://github.com/ErkoKaar">
+          GitHub Contributions
+        </WidgetTitle>
         <div className="flex gap-1">
           <TabButton active={tab === "languages"} onClick={() => setTab("languages")}>
             Keeled

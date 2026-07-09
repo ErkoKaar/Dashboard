@@ -30,7 +30,9 @@ export function CalendarWidget() {
   return (
     <Card>
       <div className="mb-4 flex shrink-0 items-center justify-between">
-        <WidgetTitle icon={CalendarDays}>Calendar</WidgetTitle>
+        <WidgetTitle icon={CalendarDays} href="https://calendar.google.com/calendar/u/0/r/week">
+          Calendar
+        </WidgetTitle>
         <div className="flex gap-1">
           <TabButton active={tab === "today"} onClick={() => setTab("today")}>
             Täna

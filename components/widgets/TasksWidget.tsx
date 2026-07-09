@@ -50,7 +50,9 @@ export function TasksWidget() {
   return (
     <Card>
       <div className="mb-4 flex shrink-0 items-center justify-between">
-        <WidgetTitle icon={ListTodo}>Today&apos;s Tasks</WidgetTitle>
+        <WidgetTitle icon={ListTodo} href="https://taskzen-phi.vercel.app/tasks">
+          Today&apos;s Tasks
+        </WidgetTitle>
         <div className="flex gap-1">
           <TabButton active={view === "today"} onClick={() => setView("today")}>
             Täna

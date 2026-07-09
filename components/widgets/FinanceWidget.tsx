@@ -183,7 +183,9 @@ export function FinanceWidget() {
   return (
     <Card>
       <div className="mb-4 flex shrink-0 items-center justify-between">
-        <WidgetTitle icon={Wallet}>Finance</WidgetTitle>
+        <WidgetTitle icon={Wallet} href="https://isiklikfinancetracker.netlify.app">
+          Finance
+        </WidgetTitle>
         <div className="flex gap-1">
           <TabButton active={tab === "expense"} onClick={() => setTab("expense")}>
             Lisa kulu

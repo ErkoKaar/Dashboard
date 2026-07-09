@@ -66,7 +66,9 @@ export function FocusLoopWidget() {
   return (
     <Card>
       <div className="mb-4 flex shrink-0 items-center justify-between">
-        <WidgetTitle icon={Target}>FocusLoop</WidgetTitle>
+        <WidgetTitle icon={Target} href="https://taskzen-phi.vercel.app/focus">
+          FocusLoop
+        </WidgetTitle>
         <div className="flex gap-1">
           <TabButton active={view === "today"} onClick={() => setView("today")}>
             Täna

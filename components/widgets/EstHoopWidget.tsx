@@ -230,7 +230,9 @@ export function EstHoopWidget() {
   return (
     <Card>
       <div className="mb-4 flex shrink-0 items-center justify-between">
-        <WidgetTitle icon={Basketball}>EstHoop</WidgetTitle>
+        <WidgetTitle icon={Basketball} href="https://est-hoop.vercel.app/koondis">
+          EstHoop
+        </WidgetTitle>
         <div className="flex gap-1">
           <TabButton active={tab === "next"} onClick={() => setTab("next")}>
             Mäng
