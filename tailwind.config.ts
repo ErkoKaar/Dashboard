@@ -5,6 +5,7 @@ const config: Config = {
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./lib/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
@@ -22,11 +23,13 @@ const config: Config = {
           bright: "var(--accent-bright)",
         },
         positive: "var(--positive)",
+        warning: "var(--warning)",
         destructive: "var(--destructive)",
       },
       fontFamily: {
         sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
         mono: ["var(--font-geist-mono)", "monospace"],
+        serif: ["var(--font-serif)", "serif"],
       },
       gridTemplateColumns: {
         dashboard: "repeat(12, minmax(0, 1fr))",

@@ -12,6 +12,7 @@
   --accent: #10a1b4;
   --accent-bright: #2fc1d4;
   --positive: #34d399;
+  --warning: #fbbf24;
   --destructive: #f87171;
 }
 
@@ -25,6 +26,25 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+}
+
+@keyframes jiggle {
+  0%,
+  100% {
+    transform: rotate(-0.6deg);
+  }
+  50% {
+    transform: rotate(0.6deg);
+  }
+}
+
+.jiggle {
+  animation: jiggle 0.22s ease-in-out infinite;
+}
+
+.jiggle:nth-child(even) {
+  animation-duration: 0.26s;
+  animation-delay: -0.12s;
 }
 
 @media (prefers-reduced-motion: reduce) {
