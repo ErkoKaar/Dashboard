@@ -6,12 +6,54 @@ import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { TabButton } from "@/components/ui/TabButton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
-import { useTodayFocusStats, useWeeklyFocusStats } from "@/lib/queries/useFocusStats";
+import { FocusStats, useTodayFocusStats, useWeeklyFocusStats } from "@/lib/queries/useFocusStats";
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.round((seconds % 3600) / 60);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function FocusStatsView({ data }: { data: FocusStats }) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="font-mono text-3xl font-semibold text-foreground">
+          {formatDuration(data.totalSeconds)}
+        </p>
+        <p className="text-xs text-muted">kokku fookust</p>
+      </div>
+
+      {data.activities.length > 0 ? (
+        <div>
+          <div className="mb-2 flex h-1.5 w-full overflow-hidden rounded-full bg-surface-hover">
+            {data.activities.map((activity) => (
+              <div
+                key={activity.name}
+                style={{
+                  width: `${data.totalSeconds > 0 ? (activity.seconds / data.totalSeconds) * 100 : 0}%`,
+                  backgroundColor: activity.color,
+                }}
+              />
+            ))}
+          </div>
+          <ul className="space-y-1.5">
+            {data.activities.map((activity, i) => (
+              <li key={activity.name} className="flex items-center gap-2 text-sm">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-foreground" />
+                <span className={`flex-1 truncate ${i === 0 ? "font-semibold" : ""} text-foreground`}>
+                  {activity.name}
+                </span>
+                <span className="font-mono text-muted">{formatDuration(activity.seconds)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="text-sm text-muted">Pole veel fookust.</p>
+      )}
+    </div>
+  );
 }
 
 export function FocusLoopWidget() {
@@ -22,8 +64,8 @@ export function FocusLoopWidget() {
   const active = view === "today" ? todayStats : weeklyStats;
 
   return (
-    <Card className="col-span-12 md:col-span-6 xl:col-span-4">
-      <div className="mb-4 flex items-center justify-between">
+    <Card>
+      <div className="mb-4 flex shrink-0 items-center justify-between">
         <WidgetTitle icon={Target}>FocusLoop</WidgetTitle>
         <div className="flex gap-1">
           <TabButton active={view === "today"} onClick={() => setView("today")}>
@@ -35,49 +77,15 @@ export function FocusLoopWidget() {
         </div>
       </div>
 
-      {active.isLoading || !active.data ? (
-        <Skeleton className="h-24 w-full" />
-      ) : active.error ? (
-        <p className="text-sm text-destructive">FocusLoopi laadimine ebaõnnestus.</p>
-      ) : (
-        <div className="space-y-3 text-sm">
-          <p>
-            Kokku fookust:{" "}
-            <span className="font-mono font-semibold text-foreground">
-              {formatDuration(active.data.totalSeconds)}
-            </span>
-          </p>
-
-          <div>
-            <p className="text-muted">Top activity</p>
-            {active.data.topActivity ? (
-              <p className="flex items-center gap-2">
-                <span
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: active.data.topActivity.color }}
-                />
-                {active.data.topActivity.name} — {formatDuration(active.data.topActivity.seconds)}
-              </p>
-            ) : (
-              <p className="text-muted">Pole veel fookust.</p>
-            )}
-          </div>
-
-          {active.data.activities.length > 0 && (
-            <div>
-              <p className="mb-1 text-muted">Activities</p>
-              <ul className="space-y-1">
-                {active.data.activities.map((activity) => (
-                  <li key={activity.name} className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: activity.color }} />
-                    {activity.name} — {formatDuration(activity.seconds)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {active.isLoading || !active.data ? (
+          <Skeleton className="h-24 w-full" />
+        ) : active.error ? (
+          <p className="text-sm text-destructive">FocusLoopi laadimine ebaõnnestus.</p>
+        ) : (
+          <FocusStatsView data={active.data} />
+        )}
+      </div>
     </Card>
   );
 }

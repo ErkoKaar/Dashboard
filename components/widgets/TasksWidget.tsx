@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { TabButton } from "@/components/ui/TabButton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import { WeeklyChart } from "@/components/ui/WeeklyChart";
+import { WeekStrip } from "@/components/ui/WeekStrip";
+import { CheckToggle } from "@/components/ui/CheckToggle";
 import { useAddTask, useDeleteTask, useTodayTasks, useUpdateTask } from "@/lib/queries/useTodayTasks";
 import { useWeeklyTaskStats } from "@/lib/queries/useWeeklyTaskStats";
 
@@ -46,8 +48,8 @@ export function TasksWidget() {
   }
 
   return (
-    <Card className="col-span-12 md:col-span-6 xl:col-span-4">
-      <div className="mb-4 flex items-center justify-between">
+    <Card>
+      <div className="mb-4 flex shrink-0 items-center justify-between">
         <WidgetTitle icon={ListTodo}>Today&apos;s Tasks</WidgetTitle>
         <div className="flex gap-1">
           <TabButton active={view === "today"} onClick={() => setView("today")}>
@@ -59,6 +61,7 @@ export function TasksWidget() {
         </div>
       </div>
 
+      <div className="min-h-0 flex-1 overflow-y-auto">
       {view === "week" ? (
         weekly.isLoading || !weekly.data ? (
           <Skeleton className="h-32 w-full" />
@@ -79,48 +82,57 @@ export function TasksWidget() {
         <p className="text-sm text-destructive">Taskide laadimine ebaõnnestus.</p>
       ) : (
         <>
+          {weekly.data && <WeekStrip daily={weekly.data.daily} />}
           {!data || data.length === 0 ? (
             <p className="text-sm text-muted">Täna tasksid pole.</p>
           ) : (
-            <ul className="space-y-2">
-              {data.map((task) => (
-                <li key={task.id} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={task.done}
-                    onChange={() => updateTask.mutate({ id: task.id, done: !task.done })}
-                    className="h-4 w-4 cursor-pointer accent-accent"
-                  />
-                  {editingId === task.id ? (
-                    <input
-                      autoFocus
-                      className="flex-1 border-b border-border bg-transparent text-sm text-foreground outline-none focus:border-accent"
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      onBlur={() => commitEdit(task.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") commitEdit(task.id);
-                        if (e.key === "Escape") setEditingId(null);
-                      }}
-                    />
-                  ) : (
-                    <span
-                      onClick={() => startEdit(task.id, task.title)}
-                      className={`flex-1 cursor-text text-sm ${task.done ? "text-muted line-through" : "text-foreground"}`}
-                    >
-                      {task.title}
-                    </span>
-                  )}
-                  <button
-                    onClick={() => deleteTask.mutate({ id: task.id })}
-                    className="cursor-pointer p-1 text-muted transition-colors duration-200 hover:text-destructive"
-                    aria-label="Kustuta"
+            <>
+              <p className="mb-2 text-xs text-muted">
+                <span className="font-mono text-foreground">{data.filter((t) => t.done).length}</span>/
+                {data.length} tehtud
+              </p>
+              <ul className="space-y-1.5">
+                {data.map((task) => (
+                  <li
+                    key={task.id}
+                    className="flex items-center gap-2.5 rounded-md bg-surface-hover/40 px-2.5 py-2"
                   >
-                    <X className="h-4 w-4" aria-hidden />
-                  </button>
-                </li>
-              ))}
-            </ul>
+                    <CheckToggle
+                      checked={task.done}
+                      onChange={() => updateTask.mutate({ id: task.id, done: !task.done })}
+                      aria-label={task.done ? "Märgi tegemata" : "Märgi tehtud"}
+                    />
+                    {editingId === task.id ? (
+                      <input
+                        autoFocus
+                        className="flex-1 border-b border-border bg-transparent text-sm text-foreground outline-none focus:border-accent"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onBlur={() => commitEdit(task.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitEdit(task.id);
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                      />
+                    ) : (
+                      <span
+                        onClick={() => startEdit(task.id, task.title)}
+                        className={`flex-1 cursor-text text-sm ${task.done ? "text-muted line-through" : "text-foreground"}`}
+                      >
+                        {task.title}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => deleteTask.mutate({ id: task.id })}
+                      className="cursor-pointer p-1 text-muted transition-colors duration-200 hover:text-destructive"
+                      aria-label="Kustuta"
+                    >
+                      <X className="h-4 w-4" aria-hidden />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
 
           <form onSubmit={handleAdd} className="mt-4 flex gap-2">
@@ -138,6 +150,7 @@ export function TasksWidget() {
           {mutationError && <p className="mt-2 text-sm text-destructive">Toiming ebaõnnestus.</p>}
         </>
       )}
+      </div>
     </Card>
   );
 }

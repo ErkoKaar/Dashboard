@@ -28,8 +28,8 @@ export function CalendarWidget() {
   const { data, isLoading, error } = useCalendarEvents();
 
   return (
-    <Card className="col-span-12 md:col-span-6 xl:col-span-4">
-      <div className="mb-4 flex items-center justify-between">
+    <Card>
+      <div className="mb-4 flex shrink-0 items-center justify-between">
         <WidgetTitle icon={CalendarDays}>Calendar</WidgetTitle>
         <div className="flex gap-1">
           <TabButton active={tab === "today"} onClick={() => setTab("today")}>
@@ -41,6 +41,7 @@ export function CalendarWidget() {
         </div>
       </div>
 
+      <div className="min-h-0 flex-1 overflow-y-auto">
       {isLoading ? (
         <Skeleton className="h-32 w-full" />
       ) : error || !data ? (
@@ -78,6 +79,7 @@ export function CalendarWidget() {
           })}
         </div>
       )}
+      </div>
     </Card>
   );
 }

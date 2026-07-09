@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { TabButton } from "@/components/ui/TabButton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import {
+  FinanceCategory,
   useAddExpense,
   useAddIncome,
   useFinanceBalance,
@@ -20,10 +21,21 @@ type Tab = "expense" | "income" | "balance";
 const fieldClass =
   "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted/60 transition-colors duration-200 focus:border-accent focus:outline-none";
 
-function ExpenseForm() {
-  const { data: categories, isLoading: categoriesLoading } = useFinanceCategories();
-  const addExpense = useAddExpense();
-
+function TransactionForm({
+  categories,
+  categoriesLoading,
+  onSubmit,
+  submitLabel,
+  isPending,
+  hasError,
+}: {
+  categories: FinanceCategory[] | undefined;
+  categoriesLoading: boolean;
+  onSubmit: (data: { amount: number; description: string; category: string }) => void;
+  submitLabel: string;
+  isPending: boolean;
+  hasError: boolean;
+}) {
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
@@ -32,7 +44,7 @@ function ExpenseForm() {
     e.preventDefault();
     const amountNum = parseFloat(amount);
     if (!amountNum || !description || !category) return;
-    addExpense.mutate({ amount: amountNum, description, category });
+    onSubmit({ amount: amountNum, description, category });
     setAmount("");
     setDescription("");
     setCategory("");
@@ -41,15 +53,20 @@ function ExpenseForm() {
   if (categoriesLoading) return <Skeleton className="h-32 w-full" />;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-2">
-      <input
-        type="number"
-        step="0.01"
-        placeholder="Summa"
-        className={fieldClass}
-        value={amount}
-        onChange={(e) => setAmount(e.target.value)}
-      />
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="relative">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-lg text-muted">
+          €
+        </span>
+        <input
+          type="number"
+          step="0.01"
+          placeholder="0.00"
+          className="w-full rounded-lg border border-border bg-background py-3 pl-8 pr-3 font-mono text-2xl font-semibold text-foreground placeholder:text-muted/40 transition-colors duration-200 focus:border-accent focus:outline-none"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+      </div>
       <input
         type="text"
         placeholder="Kirjeldus"
@@ -57,23 +74,43 @@ function ExpenseForm() {
         value={description}
         onChange={(e) => setDescription(e.target.value)}
       />
-      <select
-        className={`${fieldClass} cursor-pointer`}
-        value={category}
-        onChange={(e) => setCategory(e.target.value)}
-      >
-        <option value="">Vali kategooria</option>
+      <div className="flex flex-wrap gap-1.5">
         {categories?.map((c) => (
-          <option key={c.id} value={c.name}>
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => setCategory(c.name)}
+            className={`cursor-pointer rounded-full border px-2.5 py-1 text-xs transition-colors duration-200 ${
+              category === c.name
+                ? "border-accent bg-accent font-semibold text-background"
+                : "border-border text-muted hover:border-muted hover:text-foreground"
+            }`}
+          >
             {c.name}
-          </option>
+          </button>
         ))}
-      </select>
-      <Button type="submit" disabled={addExpense.isPending} className="w-full">
-        Lisa kulu
+      </div>
+      <Button type="submit" disabled={isPending} className="w-full">
+        {submitLabel}
       </Button>
-      {addExpense.error && <p className="text-sm text-destructive">Lisamine ebaõnnestus.</p>}
+      {hasError && <p className="text-sm text-destructive">Lisamine ebaõnnestus.</p>}
     </form>
+  );
+}
+
+function ExpenseForm() {
+  const { data: categories, isLoading: categoriesLoading } = useFinanceCategories();
+  const addExpense = useAddExpense();
+
+  return (
+    <TransactionForm
+      categories={categories}
+      categoriesLoading={categoriesLoading}
+      onSubmit={(data) => addExpense.mutate(data)}
+      submitLabel="Lisa kulu"
+      isPending={addExpense.isPending}
+      hasError={!!addExpense.error}
+    />
   );
 }
 
@@ -81,56 +118,15 @@ function IncomeForm() {
   const { data: categories, isLoading: categoriesLoading } = useFinanceIncomeCategories();
   const addIncome = useAddIncome();
 
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const amountNum = parseFloat(amount);
-    if (!amountNum || !description || !category) return;
-    addIncome.mutate({ amount: amountNum, description, category });
-    setAmount("");
-    setDescription("");
-    setCategory("");
-  }
-
-  if (categoriesLoading) return <Skeleton className="h-32 w-full" />;
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-2">
-      <input
-        type="number"
-        step="0.01"
-        placeholder="Summa"
-        className={fieldClass}
-        value={amount}
-        onChange={(e) => setAmount(e.target.value)}
-      />
-      <input
-        type="text"
-        placeholder="Kirjeldus"
-        className={fieldClass}
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-      />
-      <select
-        className={`${fieldClass} cursor-pointer`}
-        value={category}
-        onChange={(e) => setCategory(e.target.value)}
-      >
-        <option value="">Vali kategooria</option>
-        {categories?.map((c) => (
-          <option key={c.id} value={c.name}>
-            {c.name}
-          </option>
-        ))}
-      </select>
-      <Button type="submit" disabled={addIncome.isPending} className="w-full">
-        Lisa tulu
-      </Button>
-      {addIncome.error && <p className="text-sm text-destructive">Lisamine ebaõnnestus.</p>}
-    </form>
+    <TransactionForm
+      categories={categories}
+      categoriesLoading={categoriesLoading}
+      onSubmit={(data) => addIncome.mutate(data)}
+      submitLabel="Lisa tulu"
+      isPending={addIncome.isPending}
+      hasError={!!addIncome.error}
+    />
   );
 }
 
@@ -140,25 +136,43 @@ function BalanceView() {
   if (isLoading) return <Skeleton className="h-24 w-full" />;
   if (error || !data) return <p className="text-sm text-destructive">Saldo laadimine ebaõnnestus.</p>;
 
+  const total = data.totalIncome + data.totalExpense;
+  const incomePct = total > 0 ? (data.totalIncome / total) * 100 : 0;
+  const expensePct = total > 0 ? (data.totalExpense / total) * 100 : 0;
+
   return (
-    <div className="space-y-2 text-sm">
-      <p className="text-xs text-muted">See kuu</p>
-      <p>
-        Kogutulu:{" "}
-        <span className="font-mono font-semibold text-foreground">{data.totalIncome.toFixed(2)} €</span>
-      </p>
-      <p>
-        Kogukulu:{" "}
-        <span className="font-mono font-semibold text-foreground">{data.totalExpense.toFixed(2)} €</span>
-      </p>
-      <p>
-        Saldo:{" "}
-        <span
-          className={`font-mono font-semibold ${data.balance >= 0 ? "text-positive" : "text-destructive"}`}
+    <div className="space-y-4 text-center">
+      <div>
+        <p className="mb-1 text-xs text-muted">Saldo see kuu</p>
+        <p
+          className={`font-mono text-4xl font-semibold ${
+            data.balance >= 0 ? "text-positive" : "text-destructive"
+          }`}
         >
+          {data.balance >= 0 ? "+" : ""}
           {data.balance.toFixed(2)} €
-        </span>
-      </p>
+        </p>
+      </div>
+
+      <div className="flex justify-center gap-8">
+        <div>
+          <p className="font-mono font-semibold text-positive">{data.totalIncome.toFixed(2)} €</p>
+          <p className="text-xs text-muted">tulu</p>
+        </div>
+        <div>
+          <p className="font-mono font-semibold text-destructive">{data.totalExpense.toFixed(2)} €</p>
+          <p className="text-xs text-muted">kulu</p>
+        </div>
+      </div>
+
+      <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-surface-hover">
+        {total > 0 && (
+          <>
+            <div className="bg-positive" style={{ width: `${incomePct}%` }} />
+            <div className="bg-destructive" style={{ width: `${expensePct}%` }} />
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -167,8 +181,8 @@ export function FinanceWidget() {
   const [tab, setTab] = useState<Tab>("expense");
 
   return (
-    <Card className="col-span-12 md:col-span-6 xl:col-span-4">
-      <div className="mb-4 flex items-center justify-between">
+    <Card>
+      <div className="mb-4 flex shrink-0 items-center justify-between">
         <WidgetTitle icon={Wallet}>Finance</WidgetTitle>
         <div className="flex gap-1">
           <TabButton active={tab === "expense"} onClick={() => setTab("expense")}>
@@ -183,7 +197,9 @@ export function FinanceWidget() {
         </div>
       </div>
 
-      {tab === "expense" ? <ExpenseForm /> : tab === "income" ? <IncomeForm /> : <BalanceView />}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {tab === "expense" ? <ExpenseForm /> : tab === "income" ? <IncomeForm /> : <BalanceView />}
+      </div>
     </Card>
   );
 }
