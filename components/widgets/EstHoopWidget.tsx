@@ -88,7 +88,10 @@ function NextGameSection({ event }: { event: EstHoopEvent }) {
             { v: event.timeTBD ? null : countdown.m, l: "min" },
             { v: event.timeTBD ? null : countdown.s, l: "sek" },
           ].map(({ v, l }) => (
-            <div key={l} className="rounded-lg border border-border bg-background px-3 py-2 text-center">
+            <div
+              key={l}
+              className="rounded-lg border border-accent/30 bg-background px-3 py-2 text-center shadow-[0_0_16px_-4px_var(--accent)]"
+            >
               <p className="font-mono text-2xl font-semibold tabular-nums text-foreground">
                 {v == null ? "--" : String(v).padStart(2, "0")}
               </p>

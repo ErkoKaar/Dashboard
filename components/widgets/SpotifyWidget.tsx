@@ -31,14 +31,22 @@ function NowPlayingTab() {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
-        {track.albumArt ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={track.albumArt} alt="" className="h-12 w-12 rounded-md" />
-        ) : (
-          <div className="flex h-12 w-12 items-center justify-center rounded-md bg-surface-hover">
-            <Disc3 className="h-5 w-5 text-muted" aria-hidden />
-          </div>
-        )}
+        <div className="relative shrink-0">
+          {isPlaying && (
+            <span
+              className="absolute inset-0 animate-ping rounded-md bg-accent/50"
+              aria-hidden
+            />
+          )}
+          {track.albumArt ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={track.albumArt} alt="" className="relative h-12 w-12 rounded-md" />
+          ) : (
+            <div className="relative flex h-12 w-12 items-center justify-center rounded-md bg-surface-hover">
+              <Disc3 className="h-5 w-5 text-muted" aria-hidden />
+            </div>
+          )}
+        </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground">{track.name}</p>
           <p className="truncate text-sm text-muted">{track.artists}</p>

@@ -47,6 +47,21 @@ body {
   animation-delay: -0.12s;
 }
 
+@keyframes particle-burst {
+  0% {
+    transform: translate(-50%, -50%) translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) translate(var(--particle-dx), var(--particle-dy)) scale(0);
+    opacity: 0;
+  }
+}
+
+.particle-burst {
+  animation: particle-burst 0.45s ease-out forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
