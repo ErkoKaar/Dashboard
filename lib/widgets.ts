@@ -2,10 +2,8 @@ import { ComponentType } from "react";
 import { FinanceWidget } from "@/components/widgets/FinanceWidget";
 import { TasksWidget } from "@/components/widgets/TasksWidget";
 import { HabitsWidget } from "@/components/widgets/HabitsWidget";
-import { FocusLoopWidget } from "@/components/widgets/FocusLoopWidget";
 import { ChessWidget } from "@/components/widgets/ChessWidget";
 import { CalendarWidget } from "@/components/widgets/CalendarWidget";
-import { SpotifyWidget } from "@/components/widgets/SpotifyWidget";
 import { ProjectsWidget } from "@/components/widgets/ProjectsWidget";
 import { EstHoopWidget } from "@/components/widgets/EstHoopWidget";
 
@@ -22,10 +20,8 @@ export const WIDGET_REGISTRY: WidgetDefinition[] = [
   { id: "finance", Component: FinanceWidget, colSpan: THIRD },
   { id: "tasks", Component: TasksWidget, colSpan: THIRD },
   { id: "habits", Component: HabitsWidget, colSpan: THIRD },
-  { id: "focusloop", Component: FocusLoopWidget, colSpan: THIRD },
   { id: "chess", Component: ChessWidget, colSpan: THIRD },
   { id: "calendar", Component: CalendarWidget, colSpan: THIRD },
-  { id: "spotify", Component: SpotifyWidget, colSpan: THIRD },
   { id: "projects", Component: ProjectsWidget, colSpan: TWO_THIRDS },
   { id: "esthoop", Component: EstHoopWidget, colSpan: "col-span-12 xl:col-span-4" },
 ];
