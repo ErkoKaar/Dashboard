@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getTasksClient } from "@/lib/supabase/tasksClient";
+import { todayDate } from "@/lib/date";
 
 export type Criticality = "critical" | "warning" | "on_track";
 export type ProjectSection = "projects" | "personal";
@@ -28,10 +29,6 @@ export interface KeyTask extends ProjectTask {
 
 const PROJECTS_KEY = ["projects"];
 const KEY_TASKS_KEY = ["key-tasks"];
-
-function todayDate() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 export function useProjects() {
   return useQuery({

@@ -5,6 +5,19 @@ export interface WeekDay {
   label: string;
 }
 
+// Local (not UTC) calendar date — new Date().toISOString() converts to UTC
+// first, which is the wrong day for a few hours around local midnight.
+export function toDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function todayDate(): string {
+  return toDateString(new Date());
+}
+
 export function getCurrentWeekDates(): WeekDay[] {
   const now = new Date();
   const day = now.getDay();
@@ -16,7 +29,7 @@ export function getCurrentWeekDates(): WeekDay[] {
   return WEEKDAY_LABELS.map((label, i) => {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
-    return { date: d.toISOString().slice(0, 10), label };
+    return { date: toDateString(d), label };
   });
 }
 
@@ -32,8 +45,8 @@ export function toDayRange(date: string): { start: string; end: string } {
 
 export function getCurrentMonthRange(): { start: string; end: string } {
   const now = new Date();
-  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
   return { start, end };
 }
 

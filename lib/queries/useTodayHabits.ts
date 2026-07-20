@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getTasksClient } from "@/lib/supabase/tasksClient";
+import { todayDate } from "@/lib/date";
 
 export interface TodayHabit {
   id: string;
@@ -8,10 +9,6 @@ export interface TodayHabit {
 }
 
 const TODAY_HABITS_KEY = ["today-habits"];
-
-function todayDate() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 export function useTodayHabits() {
   return useQuery({

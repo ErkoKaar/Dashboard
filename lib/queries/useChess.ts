@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { toDateString } from "@/lib/date";
 
 const USERNAME = process.env.NEXT_PUBLIC_CHESS_USERNAME;
 
@@ -59,8 +60,8 @@ function toResult(raw: string): "win" | "loss" | "draw" {
 function lastThreeMonths(): { year: number; month: number }[] {
   const now = new Date();
   return [2, 1, 0].map((i) => {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
-    return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 };
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    return { year: d.getFullYear(), month: d.getMonth() + 1 };
   });
 }
 
@@ -98,7 +99,7 @@ export function useChessTrend() {
       return raw
         .sort((a, b) => a.endTime - b.endTime)
         .map(({ endTime, rating, result }) => ({
-          date: new Date(endTime * 1000).toISOString().slice(0, 10),
+          date: toDateString(new Date(endTime * 1000)),
           rating,
           result,
         }));

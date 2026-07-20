@@ -7,13 +7,9 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { TabButton } from "@/components/ui/TabButton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import { CalendarEvent, useCalendarEvents } from "@/lib/queries/useCalendarEvents";
-import { getCurrentWeekDates } from "@/lib/date";
+import { getCurrentWeekDates, todayDate } from "@/lib/date";
 
 type Tab = "today" | "week";
-
-function todayDate() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function EventRow({ event }: { event: CalendarEvent }) {
   return (
