@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { Newsreader } from "next/font/google";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
 import "./globals.css";
@@ -15,12 +14,6 @@ const geistMono = localFont({
   variable: "--font-geist-mono",
   weight: "100 900",
 });
-const newsreader = Newsreader({
-  subsets: ["latin"],
-  style: ["italic"],
-  weight: ["400", "500"],
-  variable: "--font-serif",
-});
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -34,9 +27,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <AuthProvider>
           <QueryProvider>{children}</QueryProvider>
         </AuthProvider>

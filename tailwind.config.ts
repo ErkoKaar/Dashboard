@@ -10,26 +10,28 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
+        background: "rgb(var(--background-rgb) / <alpha-value>)",
         surface: {
-          DEFAULT: "var(--surface)",
-          hover: "var(--surface-hover)",
+          DEFAULT: "rgb(var(--surface-rgb) / <alpha-value>)",
+          hover: "rgb(var(--surface-hover-rgb) / <alpha-value>)",
         },
-        border: "var(--border)",
-        foreground: "var(--foreground)",
-        muted: "var(--muted)",
+        border: "rgb(var(--border-rgb) / <alpha-value>)",
+        foreground: "rgb(var(--foreground-rgb) / <alpha-value>)",
+        muted: "rgb(var(--muted-rgb) / <alpha-value>)",
         accent: {
-          DEFAULT: "var(--accent)",
-          bright: "var(--accent-bright)",
+          DEFAULT: "rgb(var(--accent-rgb) / <alpha-value>)",
+          bright: "rgb(var(--accent-bright-rgb) / <alpha-value>)",
         },
-        positive: "var(--positive)",
-        warning: "var(--warning)",
-        destructive: "var(--destructive)",
+        positive: {
+          DEFAULT: "rgb(var(--positive-rgb) / <alpha-value>)",
+          warm: "rgb(var(--positive-warm-rgb) / <alpha-value>)",
+        },
+        warning: "rgb(var(--warning-rgb) / <alpha-value>)",
+        destructive: "rgb(var(--destructive-rgb) / <alpha-value>)",
       },
       fontFamily: {
         sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
         mono: ["var(--font-geist-mono)", "monospace"],
-        serif: ["var(--font-serif)", "serif"],
       },
       gridTemplateColumns: {
         dashboard: "repeat(12, minmax(0, 1fr))",

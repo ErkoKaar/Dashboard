@@ -9,19 +9,19 @@ interface CheckToggleProps {
   "aria-label": string;
 }
 
-const PARTICLE_COUNT = 7;
+const PARTICLE_COUNT = 11;
 const PARTICLE_COLORS = ["bg-accent", "bg-accent-bright", "bg-positive"];
 
 function ParticleBurst() {
   const [particles] = useState(() =>
     Array.from({ length: PARTICLE_COUNT }, (_, i) => {
       const angle = (360 / PARTICLE_COUNT) * i + Math.random() * 25;
-      const distance = 12 + Math.random() * 10;
+      const distance = 32 + Math.random() * 30;
       const rad = (angle * Math.PI) / 180;
       return {
         dx: Math.cos(rad) * distance,
         dy: Math.sin(rad) * distance,
-        delay: Math.random() * 0.06,
+        delay: Math.random() * 0.08,
         color: PARTICLE_COLORS[i % PARTICLE_COLORS.length],
       };
     }),
@@ -32,7 +32,7 @@ function ParticleBurst() {
       {particles.map((p, i) => (
         <span
           key={i}
-          className={`particle-burst absolute left-1/2 top-1/2 h-1 w-1 rounded-full ${p.color}`}
+          className={`particle-burst absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full ${p.color}`}
           style={
             {
               "--particle-dx": `${p.dx}px`,
@@ -53,7 +53,7 @@ export function CheckToggle({ checked, onChange, ...props }: CheckToggleProps) {
     if (!checked) {
       const key = Date.now();
       setBurstKey(key);
-      setTimeout(() => setBurstKey((current) => (current === key ? null : current)), 500);
+      setTimeout(() => setBurstKey((current) => (current === key ? null : current)), 650);
     }
     onChange();
   }
@@ -62,12 +62,12 @@ export function CheckToggle({ checked, onChange, ...props }: CheckToggleProps) {
     <button
       type="button"
       onClick={handleClick}
-      className={`relative flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors duration-200 ${
-        checked ? "border-accent bg-accent" : "border-border bg-transparent hover:border-muted"
+      className={`relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 transition-colors duration-200 ${
+        checked ? "border-accent bg-accent" : "border-muted/60 bg-transparent hover:border-accent"
       }`}
       {...props}
     >
-      {checked && <Check className="h-3 w-3 text-background" strokeWidth={3} aria-hidden />}
+      {checked && <Check className="h-3.5 w-3.5 text-background" strokeWidth={3} aria-hidden />}
       {burstKey !== null && <ParticleBurst key={burstKey} />}
     </button>
   );
