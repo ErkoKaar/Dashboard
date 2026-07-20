@@ -7,6 +7,8 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
 import { TabButton } from "@/components/ui/TabButton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
+import { Readout } from "@/components/ui/Readout";
+import { SegmentedMeter } from "@/components/ui/SegmentedMeter";
 import {
   FinanceCategory,
   useAddExpense,
@@ -136,43 +138,39 @@ function BalanceView() {
   if (isLoading) return <Skeleton className="h-24 w-full" />;
   if (error || !data) return <p className="text-sm text-destructive">Saldo laadimine ebaõnnestus.</p>;
 
-  const total = data.totalIncome + data.totalExpense;
-  const incomePct = total > 0 ? (data.totalIncome / total) * 100 : 0;
-  const expensePct = total > 0 ? (data.totalExpense / total) * 100 : 0;
-
   return (
     <div className="space-y-4 text-center">
-      <div>
-        <p className="mb-1 text-xs text-muted">Saldo see kuu</p>
-        <p
-          className={`font-mono text-4xl font-semibold ${
-            data.balance >= 0 ? "text-positive" : "text-destructive"
-          }`}
-        >
-          {data.balance >= 0 ? "+" : ""}
-          {data.balance.toFixed(2)} €
-        </p>
+      <div className="flex flex-col items-center">
+        <Readout
+          value={data.balance}
+          label="Saldo see kuu"
+          tone={data.balance >= 0 ? "positive" : "destructive"}
+          size="lg"
+          format={(n) => `${n >= 0 ? "+" : ""}${n.toFixed(2)} €`}
+        />
       </div>
 
       <div className="flex justify-center gap-8">
         <div>
-          <p className="font-mono font-semibold text-positive">{data.totalIncome.toFixed(2)} €</p>
+          <p className="font-mono text-lg font-semibold tabular-nums text-positive">
+            {data.totalIncome.toFixed(2)} €
+          </p>
           <p className="text-xs text-muted">tulu</p>
         </div>
         <div>
-          <p className="font-mono font-semibold text-destructive">{data.totalExpense.toFixed(2)} €</p>
+          <p className="font-mono text-lg font-semibold tabular-nums text-destructive">
+            {data.totalExpense.toFixed(2)} €
+          </p>
           <p className="text-xs text-muted">kulu</p>
         </div>
       </div>
 
-      <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-surface-hover">
-        {total > 0 && (
-          <>
-            <div className="bg-positive" style={{ width: `${incomePct}%` }} />
-            <div className="bg-destructive" style={{ width: `${expensePct}%` }} />
-          </>
-        )}
-      </div>
+      <SegmentedMeter
+        segments={[
+          { value: data.totalIncome, color: "var(--positive)" },
+          { value: data.totalExpense, color: "var(--destructive)" },
+        ]}
+      />
     </div>
   );
 }

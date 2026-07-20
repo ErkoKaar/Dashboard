@@ -4,37 +4,27 @@ import { useState } from "react";
 import { ListTodo, X } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { Button } from "@/components/ui/Button";
-import { TabButton } from "@/components/ui/TabButton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
-import { WeeklyChart } from "@/components/ui/WeeklyChart";
-import { WeekStrip } from "@/components/ui/WeekStrip";
 import { CheckToggle } from "@/components/ui/CheckToggle";
+import { ProgressRing } from "@/components/ui/ProgressRing";
+import { GalleryGrid } from "@/components/ui/GalleryGrid";
+import { GalleryCard } from "@/components/ui/GalleryCard";
+import { AddTile } from "@/components/ui/AddTile";
+import { CelebrationOverlay } from "@/components/ui/CelebrationOverlay";
 import { useAddTask, useDeleteTask, useTodayTasks, useUpdateTask } from "@/lib/queries/useTodayTasks";
-import { useWeeklyTaskStats } from "@/lib/queries/useWeeklyTaskStats";
+import { dailyScoreStatus, scoreBadge } from "@/lib/dailyScoreStatus";
+import { useCelebrateOnComplete } from "@/lib/useCelebrateOnComplete";
 
 export function TasksWidget() {
-  const [view, setView] = useState<"today" | "week">("today");
-
   const { data, isLoading, error } = useTodayTasks();
   const addTask = useAddTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
-  const weekly = useWeeklyTaskStats();
 
-  const [newTitle, setNewTitle] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
   const mutationError = addTask.error || updateTask.error || deleteTask.error;
-
-  function handleAdd(e: React.FormEvent) {
-    e.preventDefault();
-    const title = newTitle.trim();
-    if (!title) return;
-    addTask.mutate({ title });
-    setNewTitle("");
-  }
 
   function startEdit(id: string, title: string) {
     setEditingId(id);
@@ -47,112 +37,82 @@ export function TasksWidget() {
     setEditingId(null);
   }
 
+  const done = data?.filter((t) => t.done).length ?? 0;
+  const total = data?.length ?? 0;
+  const celebrating = useCelebrateOnComplete(done, total);
+
   return (
     <Card>
+      <CelebrationOverlay active={celebrating} />
       <div className="mb-4 flex shrink-0 items-center justify-between">
         <WidgetTitle icon={ListTodo} href="https://taskzen-phi.vercel.app/tasks">
           Today&apos;s Tasks
         </WidgetTitle>
-        <div className="flex gap-1">
-          <TabButton active={view === "today"} onClick={() => setView("today")}>
-            Täna
-          </TabButton>
-          <TabButton active={view === "week"} onClick={() => setView("week")}>
-            See nädal
-          </TabButton>
-        </div>
+        <span className="font-mono text-xs text-muted">{scoreBadge(done, total)}</span>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-      {view === "week" ? (
-        weekly.isLoading || !weekly.data ? (
-          <Skeleton className="h-32 w-full" />
-        ) : weekly.error ? (
-          <p className="text-sm text-destructive">Statistika laadimine ebaõnnestus.</p>
-        ) : (
-          <>
-            <p className="mb-2 text-sm text-muted">
-              Sel nädalal tehtud:{" "}
-              <span className="font-mono font-semibold text-foreground">{weekly.data.totalDone}</span>
-            </p>
-            <WeeklyChart daily={weekly.data.daily} />
-          </>
-        )
-      ) : isLoading ? (
+      {isLoading ? (
         <Skeleton className="h-24 w-full" />
       ) : error ? (
         <p className="text-sm text-destructive">Taskide laadimine ebaõnnestus.</p>
       ) : (
         <>
-          {weekly.data && <WeekStrip daily={weekly.data.daily} />}
-          {!data || data.length === 0 ? (
-            <p className="text-sm text-muted">Täna tasksid pole.</p>
-          ) : (
-            <>
-              <p className="mb-2 text-xs text-muted">
-                <span className="font-mono text-foreground">{data.filter((t) => t.done).length}</span>/
-                {data.length} tehtud
-              </p>
-              <ul className="space-y-1.5">
-                {data.map((task) => (
-                  <li
-                    key={task.id}
-                    className="flex items-center gap-2.5 rounded-md bg-surface-hover/40 px-2.5 py-2"
-                  >
-                    <CheckToggle
-                      checked={task.done}
-                      onChange={() => updateTask.mutate({ id: task.id, done: !task.done })}
-                      aria-label={task.done ? "Märgi tegemata" : "Märgi tehtud"}
-                    />
-                    {editingId === task.id ? (
-                      <input
-                        autoFocus
-                        className="flex-1 border-b border-border bg-transparent text-sm text-foreground outline-none focus:border-accent"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        onBlur={() => commitEdit(task.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") commitEdit(task.id);
-                          if (e.key === "Escape") setEditingId(null);
-                        }}
-                      />
-                    ) : (
-                      <span
-                        onClick={() => startEdit(task.id, task.title)}
-                        className={`flex-1 cursor-text text-sm ${task.done ? "text-muted line-through" : "text-foreground"}`}
-                      >
-                        {task.title}
-                      </span>
-                    )}
-                    <button
-                      onClick={() => deleteTask.mutate({ id: task.id })}
-                      className="cursor-pointer p-1 text-muted transition-colors duration-200 hover:text-destructive"
-                      aria-label="Kustuta"
-                    >
-                      <X className="h-4 w-4" aria-hidden />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
+          <div className="mb-4 flex items-center gap-3 border-b border-border/40 pb-4">
+            <ProgressRing done={done} total={total} size={96} strokeWidth={7} />
+            <div>
+              <p className="text-base font-semibold text-foreground">Daily score</p>
+              <p className="text-xs text-muted">resets 00:00</p>
+              <p className="mt-1.5 text-sm font-medium text-accent">{dailyScoreStatus(done, total)}</p>
+            </div>
+          </div>
 
-          <form onSubmit={handleAdd} className="mt-4 flex gap-2">
-            <input
-              className="flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted/60 transition-colors duration-200 focus:border-accent focus:outline-none"
-              placeholder="Uus task..."
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-            />
-            <Button type="submit" disabled={addTask.isPending}>
-              Lisa
-            </Button>
-          </form>
+          <GalleryGrid>
+            {(data ?? []).map((task) => (
+              <GalleryCard key={task.id} done={task.done}>
+                <div className="flex items-start justify-between gap-1.5">
+                  <CheckToggle
+                    checked={task.done}
+                    onChange={() => updateTask.mutate({ id: task.id, done: !task.done })}
+                    aria-label={task.done ? "Märgi tegemata" : "Märgi tehtud"}
+                  />
+                  <button
+                    onClick={() => deleteTask.mutate({ id: task.id })}
+                    className="cursor-pointer p-0.5 text-muted transition-colors duration-200 hover:text-destructive"
+                    aria-label="Kustuta"
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </div>
+                {editingId === task.id ? (
+                  <input
+                    autoFocus
+                    className="border-b border-border bg-transparent text-sm text-foreground outline-none focus:border-accent"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onBlur={() => commitEdit(task.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitEdit(task.id);
+                      if (e.key === "Escape") setEditingId(null);
+                    }}
+                  />
+                ) : (
+                  <span
+                    onClick={() => startEdit(task.id, task.title)}
+                    className={`line-clamp-2 cursor-text text-sm ${
+                      task.done ? "font-semibold text-foreground" : "text-foreground"
+                    }`}
+                  >
+                    {task.title}
+                  </span>
+                )}
+              </GalleryCard>
+            ))}
+            <AddTile placeholder="Uus task..." onAdd={(title) => addTask.mutate({ title })} disabled={addTask.isPending} />
+          </GalleryGrid>
 
           {mutationError && <p className="mt-2 text-sm text-destructive">Toiming ebaõnnestus.</p>}
         </>
       )}
-      </div>
     </Card>
   );
 }

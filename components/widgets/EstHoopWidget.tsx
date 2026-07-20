@@ -92,10 +92,10 @@ function NextGameSection({ event }: { event: EstHoopEvent }) {
               key={l}
               className="rounded-lg border border-accent/30 bg-background px-3 py-2 text-center shadow-[0_0_16px_-4px_var(--accent)]"
             >
-              <p className="font-mono text-2xl font-semibold tabular-nums text-foreground">
+              <p className="font-mono text-3xl font-bold tracking-tight tabular-nums text-foreground">
                 {v == null ? "--" : String(v).padStart(2, "0")}
               </p>
-              <p className="text-[10px] uppercase tracking-wide text-muted">{l}</p>
+              <p className="mt-1 text-[10px] uppercase tracking-wide text-muted">{l}</p>
             </div>
           ))}
         </div>
@@ -174,15 +174,15 @@ function TopScorerSection() {
         <p className="text-sm font-semibold text-foreground">{data.name}</p>
         <div className="mt-1 flex gap-3 text-sm">
           <p>
-            <span className="font-mono font-semibold text-foreground">{data.pts}</span>{" "}
+            <span className="font-mono text-base font-semibold tabular-nums text-foreground">{data.pts}</span>{" "}
             <span className="text-muted">PTS</span>
           </p>
           <p>
-            <span className="font-mono font-semibold text-foreground">{data.ast}</span>{" "}
+            <span className="font-mono text-base font-semibold tabular-nums text-foreground">{data.ast}</span>{" "}
             <span className="text-muted">AST</span>
           </p>
           <p>
-            <span className="font-mono font-semibold text-foreground">{data.reb}</span>{" "}
+            <span className="font-mono text-base font-semibold tabular-nums text-foreground">{data.reb}</span>{" "}
             <span className="text-muted">REB</span>
           </p>
         </div>

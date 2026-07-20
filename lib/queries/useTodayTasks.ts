@@ -21,7 +21,7 @@ export function useTodayTasks() {
         .from("tasks")
         .select("id, title, done")
         .eq("date", todayDate())
-        .order("done", { ascending: true });
+        .order("id", { ascending: true });
 
       if (error) throw error;
       return data ?? [];

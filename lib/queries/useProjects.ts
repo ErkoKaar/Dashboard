@@ -19,9 +19,19 @@ export interface ProjectTask {
   title: string;
   criticality: Criticality;
   sort_order: number;
+  completed_at: string | null;
+}
+
+export interface KeyTask extends ProjectTask {
+  projectTitle: string;
 }
 
 const PROJECTS_KEY = ["projects"];
+const KEY_TASKS_KEY = ["key-tasks"];
+
+function todayDate() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export function useProjects() {
   return useQuery({
@@ -47,6 +57,39 @@ export function useProjects() {
       }
 
       return (projects ?? []).map((p) => ({ ...p, taskCount: counts.get(p.id) ?? 0 }));
+    },
+  });
+}
+
+export function useKeyTasks() {
+  return useQuery({
+    queryKey: KEY_TASKS_KEY,
+    queryFn: async (): Promise<KeyTask[]> => {
+      const client = getTasksClient();
+      const { data: projects, error: projectsError } = await client
+        .from("projects")
+        .select("id, title")
+        .eq("section", "projects")
+        .is("completed_at", null);
+
+      if (projectsError) throw projectsError;
+
+      const projectIds = (projects ?? []).map((p) => p.id);
+      if (projectIds.length === 0) return [];
+
+      const titleById = new Map((projects ?? []).map((p) => [p.id, p.title]));
+
+      const { data: tasks, error: tasksError } = await client
+        .from("project_tasks")
+        .select("id, project_id, title, criticality, sort_order, completed_at")
+        .in("project_id", projectIds)
+        .eq("criticality", "critical")
+        .or(`completed_at.is.null,completed_at.gte.${todayDate()}`)
+        .order("sort_order", { ascending: true });
+
+      if (tasksError) throw tasksError;
+
+      return (tasks ?? []).map((t) => ({ ...t, projectTitle: titleById.get(t.project_id) ?? "" }));
     },
   });
 }
@@ -80,42 +123,15 @@ export function useUpdateProjectCriticality() {
   });
 }
 
-export function useCompleteProject() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ id }: { id: string }) => {
-      const { error } = await getTasksClient()
-        .from("projects")
-        .update({ completed_at: new Date().toISOString() })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: PROJECTS_KEY }),
-  });
-}
-
-export function useDeleteProject() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ id }: { id: string }) => {
-      const { error } = await getTasksClient().from("projects").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: PROJECTS_KEY }),
-  });
-}
-
 export function useProjectTasks(projectId: string, enabled: boolean) {
   return useQuery({
     queryKey: ["project-tasks", projectId],
     queryFn: async (): Promise<ProjectTask[]> => {
       const { data, error } = await getTasksClient()
         .from("project_tasks")
-        .select("id, project_id, title, criticality, sort_order")
+        .select("id, project_id, title, criticality, sort_order, completed_at")
         .eq("project_id", projectId)
-        .is("completed_at", null)
+        .or(`completed_at.is.null,completed_at.gte.${todayDate()}`)
         .order("sort_order", { ascending: true });
 
       if (error) throw error;
@@ -162,25 +178,28 @@ export function useUpdateProjectTaskCriticality() {
       const { error } = await getTasksClient().from("project_tasks").update({ criticality }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: (_data, variables) =>
-      queryClient.invalidateQueries({ queryKey: ["project-tasks", variables.projectId] }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: KEY_TASKS_KEY });
+    },
   });
 }
 
-export function useCompleteProjectTask() {
+export function useToggleProjectTask() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id }: { id: string; projectId: string }) => {
+    mutationFn: async ({ id, done }: { id: string; projectId: string; done: boolean }) => {
       const { error } = await getTasksClient()
         .from("project_tasks")
-        .update({ completed_at: new Date().toISOString() })
+        .update({ completed_at: done ? new Date().toISOString() : null })
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["project-tasks", variables.projectId] });
       queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
+      queryClient.invalidateQueries({ queryKey: KEY_TASKS_KEY });
     },
   });
 }

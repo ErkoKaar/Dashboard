@@ -2,7 +2,16 @@
 
 import { useEffect, useState } from "react";
 
-export function ClockWidget() {
+interface ClockWidgetProps {
+  size?: "sm" | "lg";
+}
+
+const sizeClasses: Record<NonNullable<ClockWidgetProps["size"]>, string> = {
+  sm: "text-lg",
+  lg: "text-4xl leading-none sm:text-5xl",
+};
+
+export function ClockWidget({ size = "sm" }: ClockWidgetProps) {
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -12,10 +21,12 @@ export function ClockWidget() {
   }, []);
 
   return (
-    <p className="w-[5ch] font-mono text-lg font-semibold tabular-nums text-foreground">
+    <p
+      className={`w-[5ch] font-mono font-bold tracking-tight tabular-nums text-foreground ${sizeClasses[size]}`}
+    >
       {now
         ? now.toLocaleTimeString("et-EE", { hour: "2-digit", minute: "2-digit" })
-        : " "}
+        : " "}
     </p>
   );
 }

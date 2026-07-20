@@ -22,7 +22,7 @@ export function useTodayHabits() {
 
       const [{ data: habits, error: habitsError }, { data: logs, error: logsError }] =
         await Promise.all([
-          client.from("habits").select("id, name").is("archived_at", null),
+          client.from("habits").select("id, name").is("archived_at", null).order("id", { ascending: true }),
           client.from("habit_logs").select("habit_id").eq("date", today),
         ]);
 
