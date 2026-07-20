@@ -72,7 +72,11 @@ export async function GET() {
       const date = item.start.date ?? item.start.dateTime!.slice(0, 10);
       const time = allDay
         ? null
-        : new Date(item.start.dateTime!).toLocaleTimeString("et-EE", { hour: "2-digit", minute: "2-digit" });
+        : new Date(item.start.dateTime!).toLocaleTimeString("et-EE", {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: "Europe/Tallinn",
+          });
 
       return { id: item.id, title: item.summary ?? "(Pealkirjata)", date, time, allDay };
     });
