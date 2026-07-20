@@ -104,7 +104,9 @@ export function ChessWidget() {
   return (
     <Card>
       <div className="mb-4 flex shrink-0 items-center justify-between">
-        <WidgetTitle icon={ChessKnight}>Chess</WidgetTitle>
+        <WidgetTitle icon={ChessKnight} href="https://www.chess.com">
+          Chess
+        </WidgetTitle>
         <div className="flex gap-1">
           <TabButton active={tab === "rating"} onClick={() => setTab("rating")}>
             Rating
