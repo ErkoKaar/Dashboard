@@ -116,10 +116,10 @@ export default function DashboardPage() {
             <Image
               src={profilePhoto}
               alt="Erko Kaar"
-              width={88}
-              height={88}
+              width={112}
+              height={112}
               priority
-              className="h-16 w-16 shrink-0 rounded-full object-cover object-top shadow-[0_0_24px_-2px_var(--accent)] ring-1 ring-border sm:h-20 sm:w-20"
+              className="h-20 w-20 shrink-0 rounded-full object-cover object-top shadow-[0_0_16px_-4px_rgba(16,161,180,0.35)] ring-1 ring-border sm:h-24 sm:w-24"
             />
 
             <div className="animate-reveal min-w-0">
