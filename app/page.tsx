@@ -17,7 +17,6 @@ import { ClockWidget } from "@/components/widgets/ClockWidget";
 import { WeatherWidget } from "@/components/widgets/WeatherWidget";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { SortableWidget } from "@/components/SortableWidget";
-import { SummaryWidget } from "@/components/widgets/SummaryWidget";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/providers/AuthProvider";
 import { useDashboardLayout, useUpdateDashboardLayout } from "@/lib/queries/useDashboardLayout";
@@ -131,9 +130,6 @@ export default function DashboardPage() {
           </div>
         </SortableContext>
       </DndContext>
-      <div className="mt-4">
-        <SummaryWidget />
-      </div>
     </main>
   );
 }

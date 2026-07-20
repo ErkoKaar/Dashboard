@@ -1,5 +1,4 @@
 import { ComponentType } from "react";
-import { GithubWidget } from "@/components/widgets/GithubWidget";
 import { FinanceWidget } from "@/components/widgets/FinanceWidget";
 import { TasksWidget } from "@/components/widgets/TasksWidget";
 import { HabitsWidget } from "@/components/widgets/HabitsWidget";
@@ -20,7 +19,6 @@ const THIRD = "col-span-12 md:col-span-6 xl:col-span-4";
 const TWO_THIRDS = "col-span-12 xl:col-span-8";
 
 export const WIDGET_REGISTRY: WidgetDefinition[] = [
-  { id: "github", Component: GithubWidget, colSpan: TWO_THIRDS },
   { id: "finance", Component: FinanceWidget, colSpan: THIRD },
   { id: "tasks", Component: TasksWidget, colSpan: THIRD },
   { id: "habits", Component: HabitsWidget, colSpan: THIRD },
