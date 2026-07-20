@@ -36,3 +36,12 @@ export function getCurrentMonthRange(): { start: string; end: string } {
   const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
   return { start, end };
 }
+
+export function getGreeting(date: Date = new Date()): string {
+  const hour = date.getHours();
+  if (hour < 5) return "Good night";
+  if (hour < 11) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  if (hour < 23) return "Good evening";
+  return "Good night";
+}

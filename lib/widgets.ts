@@ -7,30 +7,25 @@ import { CalendarWidget } from "@/components/widgets/CalendarWidget";
 import { ProjectsWidget } from "@/components/widgets/ProjectsWidget";
 import { EstHoopWidget } from "@/components/widgets/EstHoopWidget";
 
+export type DashboardContext = "personal" | "work";
+
 export interface WidgetDefinition {
   id: string;
   Component: ComponentType;
   colSpan: string;
+  context: DashboardContext;
 }
 
-const THIRD = "col-span-12 md:col-span-6 xl:col-span-4";
-const TWO_THIRDS = "col-span-12 xl:col-span-8";
+const HALF = "col-span-12 md:col-span-6";
+const FULL = "col-span-12";
+const QUARTER = "col-span-12 md:col-span-6 xl:col-span-3";
 
 export const WIDGET_REGISTRY: WidgetDefinition[] = [
-  { id: "finance", Component: FinanceWidget, colSpan: THIRD },
-  { id: "tasks", Component: TasksWidget, colSpan: THIRD },
-  { id: "habits", Component: HabitsWidget, colSpan: THIRD },
-  { id: "chess", Component: ChessWidget, colSpan: THIRD },
-  { id: "calendar", Component: CalendarWidget, colSpan: THIRD },
-  { id: "projects", Component: ProjectsWidget, colSpan: TWO_THIRDS },
-  { id: "esthoop", Component: EstHoopWidget, colSpan: "col-span-12 xl:col-span-4" },
+  { id: "tasks", Component: TasksWidget, colSpan: HALF, context: "personal" },
+  { id: "habits", Component: HabitsWidget, colSpan: HALF, context: "personal" },
+  { id: "projects", Component: ProjectsWidget, colSpan: FULL, context: "personal" },
+  { id: "finance", Component: FinanceWidget, colSpan: QUARTER, context: "personal" },
+  { id: "chess", Component: ChessWidget, colSpan: QUARTER, context: "personal" },
+  { id: "calendar", Component: CalendarWidget, colSpan: QUARTER, context: "personal" },
+  { id: "esthoop", Component: EstHoopWidget, colSpan: QUARTER, context: "personal" },
 ];
-
-export const DEFAULT_WIDGET_ORDER: string[] = WIDGET_REGISTRY.map((w) => w.id);
-
-export function resolveWidgetOrder(savedOrder: string[] | null | undefined): string[] {
-  const knownIds = new Set(DEFAULT_WIDGET_ORDER);
-  const saved = (savedOrder ?? []).filter((id) => knownIds.has(id));
-  const missing = DEFAULT_WIDGET_ORDER.filter((id) => !saved.includes(id));
-  return [...saved, ...missing];
-}
