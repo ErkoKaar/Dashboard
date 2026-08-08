@@ -58,15 +58,16 @@ export function useProjects() {
   });
 }
 
-export function useKeyTasks() {
+export function useKeyTasks(section: ProjectSection = "projects", enabled = true) {
   return useQuery({
-    queryKey: KEY_TASKS_KEY,
+    queryKey: [...KEY_TASKS_KEY, section],
+    enabled,
     queryFn: async (): Promise<KeyTask[]> => {
       const client = getTasksClient();
       const { data: projects, error: projectsError } = await client
         .from("projects")
         .select("id, title")
-        .eq("section", "projects")
+        .eq("section", section)
         .is("completed_at", null);
 
       if (projectsError) throw projectsError;
@@ -156,6 +157,7 @@ export function useAddProjectTask() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["project-tasks", variables.projectId] });
       queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
+      queryClient.invalidateQueries({ queryKey: KEY_TASKS_KEY });
     },
   });
 }
@@ -212,6 +214,7 @@ export function useDeleteProjectTask() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["project-tasks", variables.projectId] });
       queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
+      queryClient.invalidateQueries({ queryKey: KEY_TASKS_KEY });
     },
   });
 }

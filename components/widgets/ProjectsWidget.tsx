@@ -10,14 +10,16 @@ import { ProgressRing } from "@/components/ui/ProgressRing";
 import { GalleryGrid } from "@/components/ui/GalleryGrid";
 import { GalleryCard } from "@/components/ui/GalleryCard";
 import { AddTile } from "@/components/ui/AddTile";
-import { Dropdown } from "@/components/ui/Dropdown";
+import { Dropdown, DropdownOption } from "@/components/ui/Dropdown";
 import {
   Criticality,
+  KeyTask,
   Project,
   ProjectSection,
   ProjectTask,
   useAddProjectTask,
   useDeleteProjectTask,
+  useKeyTasks,
   useProjectTasks,
   useProjects,
   useToggleProjectTask,
@@ -27,6 +29,8 @@ import {
 import { scoreBadge } from "@/lib/dailyScoreStatus";
 import { useCelebrateOnComplete } from "@/lib/useCelebrateOnComplete";
 import { CelebrationOverlay } from "@/components/ui/CelebrationOverlay";
+
+const KEY_TASKS_ID = "__key_tasks__";
 
 const CRITICALITY_ORDER: Criticality[] = ["on_track", "warning", "critical"];
 const CRITICALITY_CLASS: Record<Criticality, string> = {
@@ -53,12 +57,12 @@ function CriticalityDot({ criticality, onClick }: { criticality: Criticality; on
 
 function ProjectDetail({
   project,
-  projects,
+  options,
   onSelect,
   tasks,
 }: {
   project: Project;
-  projects: Project[];
+  options: DropdownOption[];
   onSelect: (id: string) => void;
   tasks: { data?: ProjectTask[]; isLoading: boolean; error: Error | null };
 }) {
@@ -86,12 +90,7 @@ function ProjectDetail({
                 })
               }
             />
-            <Dropdown
-              className="flex-1"
-              options={projects.map((p) => ({ id: p.id, label: p.title, count: p.taskCount }))}
-              value={project.id}
-              onChange={onSelect}
-            />
+            <Dropdown className="flex-1" options={options} value={project.id} onChange={onSelect} />
           </div>
           <p className="mt-1.5 text-xs text-muted">{total} subtasks</p>
         </div>
@@ -156,18 +155,83 @@ function ProjectDetail({
   );
 }
 
+function KeyTasksPanel({
+  options,
+  onSelect,
+  tasks,
+}: {
+  options: DropdownOption[];
+  onSelect: (id: string) => void;
+  tasks: { data?: KeyTask[]; isLoading: boolean; error: Error | null };
+}) {
+  const toggleTask = useToggleProjectTask();
+
+  const done = tasks.data?.filter((t) => t.completed_at !== null).length ?? 0;
+  const total = tasks.data?.length ?? 0;
+
+  return (
+    <>
+      <div className="my-4 flex items-center gap-3 border-b border-border/40 pb-4">
+        <ProgressRing done={done} total={total} size={96} strokeWidth={7} />
+        <div className="min-w-0 flex-1">
+          <Dropdown options={options} value={KEY_TASKS_ID} onChange={onSelect} />
+          <p className="mt-1.5 text-xs text-muted">{total} subtasks</p>
+        </div>
+      </div>
+
+      {tasks.isLoading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : tasks.error ? (
+        <p className="text-xs text-destructive">Kriitiliste taskide laadimine ebaõnnestus.</p>
+      ) : total === 0 ? (
+        <p className="py-2 text-sm text-muted">Kriitilisi taske pole.</p>
+      ) : (
+        <GalleryGrid>
+          {(tasks.data ?? []).map((task) => {
+            const taskDone = task.completed_at !== null;
+            return (
+              <GalleryCard key={task.id} done={taskDone}>
+                <CheckToggle
+                  checked={taskDone}
+                  onChange={() =>
+                    toggleTask.mutate({ id: task.id, projectId: task.project_id, done: !taskDone })
+                  }
+                  aria-label={taskDone ? "Märgi tegemata" : "Märgi tehtud"}
+                />
+                <span
+                  className={`line-clamp-2 text-sm ${
+                    taskDone ? "font-semibold text-foreground" : "text-foreground"
+                  }`}
+                >
+                  {task.title}
+                </span>
+                <span className="truncate text-[10px] uppercase tracking-wide text-muted">
+                  {task.projectTitle}
+                </span>
+              </GalleryCard>
+            );
+          })}
+        </GalleryGrid>
+      )}
+    </>
+  );
+}
+
 interface ProjectsWidgetProps {
   section?: ProjectSection;
   title?: string;
 }
 
 export function ProjectsWidget({ section = "personal", title = "Personal Projects" }: ProjectsWidgetProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const showKeyTasks = section === "personal";
+  const [selectedId, setSelectedId] = useState<string | null>(showKeyTasks ? KEY_TASKS_ID : null);
   const { data, isLoading, error } = useProjects();
+  const keyTasks = useKeyTasks(section, showKeyTasks);
 
   const projects = (data ?? []).filter((p) => p.section === section);
 
   useEffect(() => {
+    if (selectedId === KEY_TASKS_ID) return;
     if (projects.length === 0) {
       if (selectedId !== null) setSelectedId(null);
     } else if (!projects.some((p) => p.id === selectedId)) {
@@ -175,11 +239,27 @@ export function ProjectsWidget({ section = "personal", title = "Personal Project
     }
   }, [projects, selectedId]);
 
-  const selected = projects.find((p) => p.id === selectedId) ?? null;
+  const isKeyTasks = selectedId === KEY_TASKS_ID;
+  const selected = isKeyTasks ? null : (projects.find((p) => p.id === selectedId) ?? null);
   const tasks = useProjectTasks(selected?.id ?? "", !!selected);
-  const done = tasks.data?.filter((t) => t.completed_at !== null).length ?? 0;
-  const total = tasks.data?.length ?? 0;
-  const celebrating = useCelebrateOnComplete(done, total, selected?.id ?? "");
+
+  const options: DropdownOption[] = [
+    ...(showKeyTasks
+      ? [
+          {
+            id: KEY_TASKS_ID,
+            label: "Key Tasks",
+            count: keyTasks.data?.filter((t) => t.completed_at === null).length,
+          },
+        ]
+      : []),
+    ...projects.map((p) => ({ id: p.id, label: p.title, count: p.taskCount })),
+  ];
+
+  const activeTasks = isKeyTasks ? keyTasks.data : tasks.data;
+  const done = activeTasks?.filter((t) => t.completed_at !== null).length ?? 0;
+  const total = activeTasks?.length ?? 0;
+  const celebrating = useCelebrateOnComplete(done, total, selectedId ?? "");
 
   return (
     <Card>
@@ -188,7 +268,9 @@ export function ProjectsWidget({ section = "personal", title = "Personal Project
         <WidgetTitle icon={FolderKanban} href="https://taskzen-phi.vercel.app/tasks/projects">
           {title}
         </WidgetTitle>
-        {selected && <span className="font-mono text-xs text-muted">{scoreBadge(done, total)}</span>}
+        {(selected || isKeyTasks) && (
+          <span className="font-mono text-xs text-muted">{scoreBadge(done, total)}</span>
+        )}
       </div>
 
       {isLoading ? (
@@ -197,12 +279,14 @@ export function ProjectsWidget({ section = "personal", title = "Personal Project
         <p className="text-sm text-destructive">Projektide laadimine ebaõnnestus.</p>
       ) : projects.length === 0 ? (
         <p className="py-2 text-sm text-muted">Projekte pole.</p>
+      ) : isKeyTasks ? (
+        <KeyTasksPanel options={options} onSelect={setSelectedId} tasks={keyTasks} />
       ) : (
         selected && (
           <ProjectDetail
             key={selected.id}
             project={selected}
-            projects={projects}
+            options={options}
             onSelect={setSelectedId}
             tasks={tasks}
           />
