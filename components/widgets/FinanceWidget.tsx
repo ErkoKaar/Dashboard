@@ -1,205 +1,277 @@
 "use client";
 
-import { useState } from "react";
-import { Wallet } from "lucide-react";
+import { FormEvent, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  LucideIcon,
+  Landmark,
+  Lock,
+  PiggyBank,
+  TrendingDown,
+  TrendingUp,
+  Unlock,
+  Wallet,
+} from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
-import { TabButton } from "@/components/ui/TabButton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
-import { Readout } from "@/components/ui/Readout";
 import { SegmentedMeter } from "@/components/ui/SegmentedMeter";
-import {
-  FinanceCategory,
-  useAddExpense,
-  useAddIncome,
-  useFinanceBalance,
-  useFinanceCategories,
-  useFinanceIncomeCategories,
-} from "@/lib/queries/useFinance";
+import { useFinanceBalance } from "@/lib/queries/useFinance";
 
-type Tab = "expense" | "income" | "balance";
+// Parooli kontrollib /api/finance-pin route server-only FINANCE_WIDGET_PIN env'i
+// vastu — parool ei satu kliendi bundle'isse. Kui env puudub, lukku ei kuvata.
+const UNLOCK_STORAGE_KEY = "finance-widget-unlocked";
 
-const fieldClass =
-  "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted/60 transition-colors duration-200 focus:border-accent focus:outline-none";
+const TONE_CLASS = {
+  positive: "text-positive",
+  destructive: "text-destructive",
+  accent: "text-accent-bright",
+} as const;
 
-function TransactionForm({
-  categories,
-  categoriesLoading,
-  onSubmit,
-  submitLabel,
-  isPending,
-  hasError,
+type Tone = keyof typeof TONE_CLASS;
+
+function formatEuro(value: number): string {
+  const abs = Math.abs(value).toFixed(2);
+  return value < 0 ? `−€${abs}` : `€${abs}`;
+}
+
+function StatTile({
+  icon: Icon,
+  label,
+  value,
+  tone,
+  valueTone,
 }: {
-  categories: FinanceCategory[] | undefined;
-  categoriesLoading: boolean;
-  onSubmit: (data: { amount: number; description: string; category: string }) => void;
-  submitLabel: string;
-  isPending: boolean;
-  hasError: boolean;
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  tone: Tone;
+  valueTone?: Tone;
 }) {
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/40 p-4">
+      <div className="flex items-center gap-1.5">
+        <Icon className={`h-4 w-4 shrink-0 ${TONE_CLASS[tone]}`} aria-hidden />
+        <span className="truncate text-xs text-muted">{label}</span>
+      </div>
+      <p
+        className={`mt-2 font-mono text-xl font-bold tabular-nums ${
+          valueTone ? TONE_CLASS[valueTone] : "text-foreground"
+        }`}
+      >
+        {formatEuro(value)}
+      </p>
+    </div>
+  );
+}
 
-  function handleSubmit(e: React.FormEvent) {
+function MaskedTile({ icon: Icon, label, tone }: { icon: LucideIcon; label: string; tone: Tone }) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-background/40 p-4">
+      <div className="flex items-center gap-1.5">
+        <Icon className={`h-4 w-4 shrink-0 ${TONE_CLASS[tone]} opacity-50`} aria-hidden />
+        <span className="truncate text-xs text-muted">{label}</span>
+      </div>
+      <p className="mt-2 font-mono text-xl font-bold tracking-wider text-muted/40">€••••</p>
+    </div>
+  );
+}
+
+function LockScreen({ onUnlock }: { onUnlock: () => void }) {
+  const [value, setValue] = useState("");
+  const [wrong, setWrong] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const amountNum = parseFloat(amount);
-    if (!amountNum || !description || !category) return;
-    onSubmit({ amount: amountNum, description, category });
-    setAmount("");
-    setDescription("");
-    setCategory("");
+    if (pending) return;
+    setPending(true);
+    try {
+      const res = await fetch("/api/finance-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: value }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        onUnlock();
+      } else {
+        setWrong(true);
+        setValue("");
+      }
+    } catch {
+      setWrong(true);
+    } finally {
+      setPending(false);
+    }
   }
 
-  if (categoriesLoading) return <Skeleton className="h-32 w-full" />;
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-lg text-muted">
-          €
-        </span>
-        <input
-          type="number"
-          step="0.01"
-          placeholder="0.00"
-          className="w-full rounded-lg border border-border bg-background py-3 pl-8 pr-3 font-mono text-2xl font-semibold text-foreground placeholder:text-muted/40 transition-colors duration-200 focus:border-accent focus:outline-none"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-        />
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-border/60 bg-background/60 p-4 text-center">
+        <div className="flex items-center justify-center gap-2">
+          <Lock className="h-4 w-4 text-muted" aria-hidden />
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted">
+            Pangasaldo
+          </span>
+        </div>
+        <p className="mt-2 font-mono text-5xl font-bold tracking-wider text-muted/40">€••••</p>
+        <form onSubmit={handleSubmit} className="mt-5 flex w-full max-w-[240px] items-center gap-2">
+          <input
+            type="password"
+            autoComplete="off"
+            placeholder="Parool"
+            aria-label="Parool"
+            className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-center text-sm text-foreground outline-none transition-colors duration-200 placeholder:text-muted/60 focus:border-accent"
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setWrong(false);
+            }}
+          />
+          <Button type="submit" disabled={pending} className="shrink-0 px-3 py-2" aria-label="Ava">
+            <Unlock className="h-4 w-4" aria-hidden />
+          </Button>
+        </form>
+        <p className={`mt-2 h-4 text-xs ${wrong ? "text-destructive" : "text-transparent"}`}>
+          Vale parool.
+        </p>
       </div>
-      <input
-        type="text"
-        placeholder="Kirjeldus"
-        className={fieldClass}
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-      />
-      <div className="flex flex-wrap gap-1.5">
-        {categories?.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            onClick={() => setCategory(c.name)}
-            className={`cursor-pointer rounded-full border px-2.5 py-1 text-xs transition-colors duration-200 ${
-              category === c.name
-                ? "border-accent bg-accent font-semibold text-background"
-                : "border-border text-muted hover:border-muted hover:text-foreground"
-            }`}
-          >
-            {c.name}
-          </button>
-        ))}
+
+      <div className="grid grid-cols-3 gap-3">
+        <MaskedTile icon={TrendingUp} label="Tulud" tone="positive" />
+        <MaskedTile icon={TrendingDown} label="Kulud" tone="destructive" />
+        <MaskedTile icon={PiggyBank} label="Saldo" tone="positive" />
       </div>
-      <Button type="submit" disabled={isPending} className="w-full">
-        {submitLabel}
-      </Button>
-      {hasError && <p className="text-sm text-destructive">Lisamine ebaõnnestus.</p>}
-    </form>
+
+      <div>
+        <SegmentedMeter segments={[{ value: 1, color: "var(--surface-hover)" }]} />
+        <div className="mt-1.5 flex justify-between text-[10px] uppercase tracking-wide text-muted/60">
+          <span>tulud €••••</span>
+          <span>kulud €••••</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
-function ExpenseForm() {
-  const { data: categories, isLoading: categoriesLoading } = useFinanceCategories();
-  const addExpense = useAddExpense();
-
-  return (
-    <TransactionForm
-      categories={categories}
-      categoriesLoading={categoriesLoading}
-      onSubmit={(data) => addExpense.mutate(data)}
-      submitLabel="Lisa kulu"
-      isPending={addExpense.isPending}
-      hasError={!!addExpense.error}
-    />
-  );
-}
-
-function IncomeForm() {
-  const { data: categories, isLoading: categoriesLoading } = useFinanceIncomeCategories();
-  const addIncome = useAddIncome();
-
-  return (
-    <TransactionForm
-      categories={categories}
-      categoriesLoading={categoriesLoading}
-      onSubmit={(data) => addIncome.mutate(data)}
-      submitLabel="Lisa tulu"
-      isPending={addIncome.isPending}
-      hasError={!!addIncome.error}
-    />
-  );
-}
-
-function BalanceView() {
+function FinanceStats() {
   const { data, isLoading, error } = useFinanceBalance();
 
-  if (isLoading) return <Skeleton className="h-24 w-full" />;
-  if (error || !data) return <p className="text-sm text-destructive">Saldo laadimine ebaõnnestus.</p>;
+  if (isLoading) return <Skeleton className="h-40 w-full" />;
+  if (error || !data)
+    return <p className="text-sm text-destructive">Saldo laadimine ebaõnnestus.</p>;
 
   return (
-    <div className="space-y-4 text-center">
-      <div className="flex flex-col items-center">
-        <Readout
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-accent/30 bg-background/60 p-4 text-center shadow-[0_0_16px_-4px_var(--accent)]">
+        <div className="flex items-center justify-center gap-2">
+          <Landmark className="h-4 w-4 text-accent-bright" aria-hidden />
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted">
+            Pangasaldo
+          </span>
+        </div>
+        <p className="mt-2 font-mono text-5xl font-bold tabular-nums text-foreground">
+          {formatEuro(data.bankBalance)}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <StatTile icon={TrendingUp} label="Tulud" value={data.totalIncome} tone="positive" />
+        <StatTile icon={TrendingDown} label="Kulud" value={data.totalExpense} tone="destructive" />
+        <StatTile
+          icon={PiggyBank}
+          label="Saldo"
           value={data.balance}
-          label="Saldo see kuu"
           tone={data.balance >= 0 ? "positive" : "destructive"}
-          size="lg"
-          format={(n) => `${n >= 0 ? "+" : ""}${n.toFixed(2)} €`}
+          valueTone={data.balance >= 0 ? "positive" : "destructive"}
         />
       </div>
 
-      <div className="flex justify-center gap-8">
-        <div>
-          <p className="font-mono text-lg font-semibold tabular-nums text-positive">
-            {data.totalIncome.toFixed(2)} €
-          </p>
-          <p className="text-xs text-muted">tulu</p>
-        </div>
-        <div>
-          <p className="font-mono text-lg font-semibold tabular-nums text-destructive">
-            {data.totalExpense.toFixed(2)} €
-          </p>
-          <p className="text-xs text-muted">kulu</p>
+      <div>
+        <SegmentedMeter
+          segments={[
+            { value: data.totalIncome, color: "var(--positive)" },
+            { value: data.totalExpense, color: "var(--destructive)" },
+          ]}
+        />
+        <div className="mt-1.5 flex justify-between text-[10px] uppercase tracking-wide text-muted">
+          <span>tulud {formatEuro(data.totalIncome)}</span>
+          <span>kulud {formatEuro(data.totalExpense)}</span>
         </div>
       </div>
-
-      <SegmentedMeter
-        segments={[
-          { value: data.totalIncome, color: "var(--positive)" },
-          { value: data.totalExpense, color: "var(--destructive)" },
-        ]}
-      />
     </div>
   );
 }
 
 export function FinanceWidget() {
-  const [tab, setTab] = useState<Tab>("expense");
+  const [unlocked, setUnlocked] = useState(false);
+
+  const { data: pinStatus } = useQuery({
+    queryKey: ["finance-pin-status"],
+    queryFn: async (): Promise<{ enabled: boolean }> => {
+      const res = await fetch("/api/finance-pin");
+      if (!res.ok) throw new Error("PIN-oleku päring ebaõnnestus");
+      return res.json();
+    },
+    staleTime: Infinity,
+  });
+  // Kuni serveri vastust pole, eelda et lukk on peal (privaatsus enne mugavust).
+  const pinEnabled = pinStatus?.enabled ?? true;
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(UNLOCK_STORAGE_KEY) === "1") setUnlocked(true);
+    } catch {
+      // sessionStorage pole saadaval — jääb lukku
+    }
+  }, []);
+
+  function unlock() {
+    setUnlocked(true);
+    try {
+      sessionStorage.setItem(UNLOCK_STORAGE_KEY, "1");
+    } catch {
+      // ignoreeri — lukk avaneb selle lehe eluajaks
+    }
+  }
+
+  function lock() {
+    setUnlocked(false);
+    try {
+      sessionStorage.removeItem(UNLOCK_STORAGE_KEY);
+    } catch {
+      // ignoreeri
+    }
+  }
+
+  const monthName = new Date().toLocaleDateString("et-EE", { month: "long" });
 
   return (
     <Card>
       <div className="mb-4 flex shrink-0 items-center justify-between">
-        <WidgetTitle icon={Wallet} href="https://isiklikfinancetracker.netlify.app">
+        <WidgetTitle icon={Wallet} href="https://finance-tracker-sooty-five-85.vercel.app">
           Finance
         </WidgetTitle>
-        <div className="flex gap-1">
-          <TabButton active={tab === "expense"} onClick={() => setTab("expense")}>
-            Lisa kulu
-          </TabButton>
-          <TabButton active={tab === "income"} onClick={() => setTab("income")}>
-            Lisa tulu
-          </TabButton>
-          <TabButton active={tab === "balance"} onClick={() => setTab("balance")}>
-            Saldo
-          </TabButton>
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[10px] uppercase tracking-wide text-muted">
+            {monthName}
+          </span>
+          {pinEnabled && unlocked && (
+            <button
+              type="button"
+              onClick={lock}
+              className="cursor-pointer p-0.5 text-muted transition-colors duration-200 hover:text-foreground"
+              aria-label="Lukusta"
+            >
+              <Lock className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {tab === "expense" ? <ExpenseForm /> : tab === "income" ? <IncomeForm /> : <BalanceView />}
-      </div>
+      {unlocked || !pinEnabled ? <FinanceStats /> : <LockScreen onUnlock={unlock} />}
     </Card>
   );
 }

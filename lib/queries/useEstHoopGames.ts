@@ -87,8 +87,15 @@ export function useEstHoopTopScorer() {
 
       const top = [...estoniaPlayers].sort((a, b) => b.pts - a.pts)[0];
 
+      // Box score'i nimed tulevad ilma diakriitikuteta ("Kullamae"), players-endpoint
+      // diakriitikutega ("Kullamäe") — võrdle normaliseeritult.
+      const normalize = (name: string) =>
+        name
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase();
       const players: EstHoopPlayer[] = await playersRes.json();
-      const slug = players.find((p) => p.name === top.name)?.slug ?? null;
+      const slug = players.find((p) => normalize(p.name) === normalize(top.name))?.slug ?? null;
 
       return { name: top.name, slug, pts: top.pts, reb: top.reb, ast: top.ast, game: lastGame };
     },

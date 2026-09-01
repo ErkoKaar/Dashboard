@@ -41,7 +41,12 @@ export function KeyTasksWidget() {
                 <CheckToggle
                   checked={taskDone}
                   onChange={() =>
-                    toggleTask.mutate({ id: task.id, projectId: task.project_id, done: !taskDone })
+                    toggleTask.mutate({
+                      id: task.id,
+                      projectId: task.project_id,
+                      title: task.title,
+                      done: !taskDone,
+                    })
                   }
                   aria-label={taskDone ? "Märgi tegemata" : "Märgi tehtud"}
                 />

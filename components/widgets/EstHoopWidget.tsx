@@ -12,7 +12,7 @@ import { countryFlag } from "@/lib/countryFlags";
 // Player photos are served as static assets from the EstHoop frontend deploy,
 // keyed by slug — see frontend/src/components/PlayerAvatar.jsx in that repo.
 const ESTHOOP_FRONTEND_URL = "https://est-hoop.vercel.app";
-const PHOTO_EXTENSIONS = ["jpg", "png"];
+const PHOTO_EXTENSIONS = ["webp", "jpg", "png"];
 const ESTONIA_FLAG = "🇪🇪";
 
 type Tab = "next" | "last";
@@ -25,10 +25,25 @@ function isHome(event: EstHoopEvent): boolean {
   return event.homeTeam.name === "Estonia";
 }
 
+function estoniaScores(event: EstHoopEvent): { est: number | null; opp: number | null } {
+  const home = isHome(event);
+  return {
+    est: (home ? event.homeScore?.current : event.awayScore?.current) ?? null,
+    opp: (home ? event.awayScore?.current : event.homeScore?.current) ?? null,
+  };
+}
+
 function formatDate(timestamp: number): string {
   return new Date(timestamp * 1000).toLocaleDateString("et-EE", {
     day: "numeric",
     month: "long",
+  });
+}
+
+function formatShortDate(timestamp: number): string {
+  return new Date(timestamp * 1000).toLocaleDateString("et-EE", {
+    day: "2-digit",
+    month: "2-digit",
   });
 }
 
@@ -65,23 +80,82 @@ function useCountdown(targetTimestamp: number): Countdown | null {
   return countdown;
 }
 
+function TeamBlock({ flag, name }: { flag: string; name: string }) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
+      <span className="text-4xl leading-none" aria-hidden>
+        {flag}
+      </span>
+      <span className="max-w-full truncate text-base font-semibold text-foreground">{name}</span>
+    </div>
+  );
+}
+
+function GameRow({ event }: { event: EstHoopEvent }) {
+  const opponent = opponentName(event);
+  const { est, opp } = estoniaScores(event);
+  const played = est != null && opp != null;
+  const won = played && est > opp;
+
+  return (
+    <div className="flex items-center gap-3 py-1.5 text-sm">
+      <span className="w-12 shrink-0 font-mono text-xs tabular-nums text-muted">
+        {formatShortDate(event.startTimestamp)}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-foreground">
+        {countryFlag(opponent)} {opponent}
+      </span>
+      {played ? (
+        <span
+          className={`shrink-0 font-mono text-sm font-semibold tabular-nums ${
+            won ? "text-positive" : "text-destructive"
+          }`}
+        >
+          {est}–{opp}
+        </span>
+      ) : (
+        <span className="shrink-0 text-xs text-muted">{isHome(event) ? "kodus" : "võõrsil"}</span>
+      )}
+    </div>
+  );
+}
+
+function MiniGameList({ heading, events }: { heading: string; events: EstHoopEvent[] }) {
+  if (events.length === 0) return null;
+
+  return (
+    <div className="mt-auto border-t border-border/40 pt-3">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted">
+        {heading}
+      </p>
+      <div className="divide-y divide-border/30">
+        {events.map((event) => (
+          <GameRow key={event.id} event={event} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function NextGameSection({ event }: { event: EstHoopEvent }) {
   const countdown = useCountdown(event.startTimestamp);
   const opponent = opponentName(event);
 
   return (
-    <div className="flex h-full flex-col items-center justify-center text-center">
-      <p className="mb-1.5 text-xs text-muted">Järgmine mäng</p>
-      <p className="mb-4 text-lg font-semibold text-foreground">
-        {ESTONIA_FLAG} Eesti <span className="font-normal text-muted">vs</span>{" "}
-        {countryFlag(opponent)} {opponent}
-        <span className="block text-sm font-normal text-muted">
-          {formatDate(event.startTimestamp)}
-          {!isHome(event) && " · võõrsil"}
-        </span>
+    <div className="flex flex-col items-center pt-2 text-center">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">
+        {event.tournament?.name ?? "Järgmine mäng"}
+      </p>
+      <div className="mt-4 flex w-full max-w-sm items-center gap-3">
+        <TeamBlock flag={ESTONIA_FLAG} name="Eesti" />
+        <span className="shrink-0 font-mono text-xs uppercase tracking-widest text-muted">vs</span>
+        <TeamBlock flag={countryFlag(opponent)} name={opponent} />
+      </div>
+      <p className="mt-2 text-sm text-muted">
+        {formatDate(event.startTimestamp)} · {isHome(event) ? "kodus" : "võõrsil"}
       </p>
       {countdown && (
-        <div className="flex justify-center gap-2">
+        <div className="mt-5 flex justify-center gap-2">
           {[
             { v: countdown.d, l: "päeva" },
             { v: event.timeTBD ? null : countdown.h, l: "tundi" },
@@ -90,7 +164,7 @@ function NextGameSection({ event }: { event: EstHoopEvent }) {
           ].map(({ v, l }) => (
             <div
               key={l}
-              className="rounded-lg border border-accent/30 bg-background px-3 py-2 text-center shadow-[0_0_16px_-4px_var(--accent)]"
+              className="w-16 rounded-lg border border-accent/30 bg-background px-2 py-2 text-center shadow-[0_0_16px_-4px_var(--accent)]"
             >
               <p className="font-mono text-3xl font-bold tracking-tight tabular-nums text-foreground">
                 {v == null ? "--" : String(v).padStart(2, "0")}
@@ -106,28 +180,32 @@ function NextGameSection({ event }: { event: EstHoopEvent }) {
 
 function LastResultSection({ event }: { event: EstHoopEvent }) {
   const opponent = opponentName(event);
-  const home = isHome(event);
-  const estScore = home ? event.homeScore?.current : event.awayScore?.current;
-  const oppScore = home ? event.awayScore?.current : event.homeScore?.current;
-  const won = estScore != null && oppScore != null && estScore > oppScore;
+  const { est, opp } = estoniaScores(event);
+  const won = est != null && opp != null && est > opp;
 
   return (
-    <div>
-      <p className="mb-2 text-xs text-muted">Viimane tulemus</p>
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm">
-            {ESTONIA_FLAG} Eesti <span className="text-muted">vs</span> {countryFlag(opponent)}{" "}
-            {opponent}
-          </p>
-          <p className="text-xs text-muted">{formatDate(event.startTimestamp)}</p>
-        </div>
+    <div className="flex flex-col items-center pt-2 text-center">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted">
+        {event.tournament?.name ?? "Viimane tulemus"} · {formatDate(event.startTimestamp)}
+      </p>
+      <div className="mt-4 flex w-full max-w-sm items-center gap-3">
+        <TeamBlock flag={ESTONIA_FLAG} name="Eesti" />
         <p
-          className={`font-mono text-lg font-semibold ${won ? "text-positive" : "text-destructive"}`}
+          className={`shrink-0 font-mono text-4xl font-bold tracking-tight tabular-nums ${
+            won ? "text-positive" : "text-destructive"
+          }`}
         >
-          {estScore}–{oppScore}
+          {est}–{opp}
         </p>
+        <TeamBlock flag={countryFlag(opponent)} name={opponent} />
       </div>
+      <p
+        className={`mt-2 text-xs font-semibold uppercase tracking-wide ${
+          won ? "text-positive" : "text-destructive"
+        }`}
+      >
+        {won ? "Võit" : "Kaotus"}
+      </p>
     </div>
   );
 }
@@ -200,16 +278,19 @@ function LastGameTab() {
   const lastGame = data.recent[0];
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full flex-col gap-4">
       {lastGame ? (
         <LastResultSection event={lastGame} />
       ) : (
         <p className="text-sm text-muted">Viimast tulemust pole veel.</p>
       )}
-      <div>
-        <p className="mb-2 text-xs text-muted">Tippmängija</p>
+      <div className="border-t border-border/40 pt-3">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted">
+          Tippmängija
+        </p>
         <TopScorerSection />
       </div>
+      <MiniGameList heading="Eelmised mängud" events={data.recent.slice(1, 4)} />
     </div>
   );
 }
@@ -220,10 +301,15 @@ function NextGameTab() {
   if (isLoading) return <Skeleton className="h-24 w-full" />;
   if (error || !data) return <p className="text-sm text-destructive">EstHoop andmete laadimine ebaõnnestus.</p>;
 
-  return data.upcoming[0] ? (
-    <NextGameSection event={data.upcoming[0]} />
-  ) : (
-    <p className="text-sm text-muted">Hetkel ühtegi planeeritud mängu.</p>
+  return (
+    <div className="flex h-full flex-col gap-4">
+      {data.upcoming[0] ? (
+        <NextGameSection event={data.upcoming[0]} />
+      ) : (
+        <p className="text-sm text-muted">Hetkel ühtegi planeeritud mängu.</p>
+      )}
+      <MiniGameList heading="Tulevased mängud" events={data.upcoming.slice(1, 4)} />
+    </div>
   );
 }
 
@@ -237,16 +323,16 @@ export function EstHoopWidget() {
           EstHoop
         </WidgetTitle>
         <div className="flex gap-1">
-          <TabButton active={tab === "next"} onClick={() => setTab("next")}>
+          <TabButton className="w-24" active={tab === "next"} onClick={() => setTab("next")}>
             Mäng
           </TabButton>
-          <TabButton active={tab === "last"} onClick={() => setTab("last")}>
+          <TabButton className="w-24" active={tab === "last"} onClick={() => setTab("last")}>
             Viimane mäng
           </TabButton>
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
         {tab === "next" ? <NextGameTab /> : <LastGameTab />}
       </div>
     </Card>

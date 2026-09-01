@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Briefcase, LogOut, StickyNote, User } from "lucide-react";
+import { ListChecks, LogOut, StickyNote, User } from "lucide-react";
 import { ClockWidget } from "@/components/widgets/ClockWidget";
 import { WeatherWidget } from "@/components/widgets/WeatherWidget";
 import { LoginForm } from "@/components/auth/LoginForm";
@@ -80,16 +80,16 @@ export default function DashboardPage() {
               Personal
             </button>
             <button
-              onClick={() => setDashboardContext("work")}
-              aria-pressed={dashboardContext === "work"}
+              onClick={() => setDashboardContext("taskmanager")}
+              aria-pressed={dashboardContext === "taskmanager"}
               className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors duration-200 ${
-                dashboardContext === "work"
+                dashboardContext === "taskmanager"
                   ? "bg-accent text-background"
                   : "text-muted hover:text-foreground"
               }`}
             >
-              <Briefcase className="h-3.5 w-3.5" aria-hidden />
-              Work
+              <ListChecks className="h-3.5 w-3.5" aria-hidden />
+              Taskmanager
             </button>
             <button
               onClick={() => setDashboardContext("notes")}

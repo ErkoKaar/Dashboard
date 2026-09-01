@@ -6,9 +6,10 @@ export interface TodayTask {
   id: string;
   title: string;
   done: boolean;
+  project_task_id: string | null;
 }
 
-const TODAY_TASKS_KEY = ["today-tasks"];
+export const TODAY_TASKS_KEY = ["today-tasks"];
 
 export function useTodayTasks() {
   return useQuery({
@@ -16,7 +17,7 @@ export function useTodayTasks() {
     queryFn: async (): Promise<TodayTask[]> => {
       const { data, error } = await getTasksClient()
         .from("tasks")
-        .select("id, title, done")
+        .select("id, title, done, project_task_id")
         .eq("date", todayDate())
         .order("id", { ascending: true });
 

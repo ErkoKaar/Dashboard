@@ -73,6 +73,7 @@ export interface FinanceBalance {
   totalIncome: number;
   totalExpense: number;
   balance: number;
+  bankBalance: number;
 }
 
 export function useFinanceBalance() {
@@ -81,19 +82,32 @@ export function useFinanceBalance() {
     queryFn: async (): Promise<FinanceBalance> => {
       const client = getFinanceClient();
       const { start, end } = getCurrentMonthRange();
-      const [{ data: expenses, error: expensesError }, { data: incomes, error: incomesError }] =
-        await Promise.all([
-          client.from("expenses").select("amount").gte("date", start).lt("date", end),
-          client.from("incomes").select("amount").gte("date", start).lt("date", end),
-        ]);
+      const [monthExpenses, monthIncomes, bankConnections] = await Promise.all([
+        client.from("expenses").select("amount").gte("date", start).lt("date", end),
+        client.from("incomes").select("amount").gte("date", start).lt("date", end),
+        // Enable Bankingust sünkitud saldo, mida FinanceTracker siin tabelis hoiab.
+        client.from("bank_connections").select("balance"),
+      ]);
 
-      if (expensesError) throw expensesError;
-      if (incomesError) throw incomesError;
+      for (const res of [monthExpenses, monthIncomes, bankConnections]) {
+        if (res.error) throw res.error;
+      }
 
-      const totalExpense = (expenses ?? []).reduce((sum, row) => sum + row.amount, 0);
-      const totalIncome = (incomes ?? []).reduce((sum, row) => sum + row.amount, 0);
+      const sum = (rows: { amount: number }[] | null) =>
+        (rows ?? []).reduce((acc, row) => acc + row.amount, 0);
 
-      return { totalIncome, totalExpense, balance: totalIncome - totalExpense };
+      const totalExpense = sum(monthExpenses.data);
+      const totalIncome = sum(monthIncomes.data);
+
+      return {
+        totalIncome,
+        totalExpense,
+        balance: totalIncome - totalExpense,
+        bankBalance: (bankConnections.data ?? []).reduce(
+          (acc, row) => acc + (row.balance ?? 0),
+          0,
+        ),
+      };
     },
   });
 }

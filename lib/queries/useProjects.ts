@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getTasksClient } from "@/lib/supabase/tasksClient";
 import { todayDate } from "@/lib/date";
+import { TODAY_TASKS_KEY } from "@/lib/queries/useTodayTasks";
 
 export type Criticality = "critical" | "warning" | "on_track";
 export type ProjectSection = "projects" | "personal";
@@ -29,6 +30,7 @@ export interface KeyTask extends ProjectTask {
 
 const PROJECTS_KEY = ["projects"];
 const KEY_TASKS_KEY = ["key-tasks"];
+const ALL_PROJECT_TASKS_KEY = ["all-project-tasks"];
 
 export function useProjects() {
   return useQuery({
@@ -82,6 +84,38 @@ export function useKeyTasks(section: ProjectSection = "projects", enabled = true
         .select("id, project_id, title, criticality, sort_order, completed_at")
         .in("project_id", projectIds)
         .eq("criticality", "critical")
+        .or(`completed_at.is.null,completed_at.gte.${todayDate()}`)
+        .order("sort_order", { ascending: true });
+
+      if (tasksError) throw tasksError;
+
+      return (tasks ?? []).map((t) => ({ ...t, projectTitle: titleById.get(t.project_id) ?? "" }));
+    },
+  });
+}
+
+export function useAllProjectTasks(section: ProjectSection) {
+  return useQuery({
+    queryKey: [...ALL_PROJECT_TASKS_KEY, section],
+    queryFn: async (): Promise<KeyTask[]> => {
+      const client = getTasksClient();
+      const { data: projects, error: projectsError } = await client
+        .from("projects")
+        .select("id, title")
+        .eq("section", section)
+        .is("completed_at", null);
+
+      if (projectsError) throw projectsError;
+
+      const projectIds = (projects ?? []).map((p) => p.id);
+      if (projectIds.length === 0) return [];
+
+      const titleById = new Map((projects ?? []).map((p) => [p.id, p.title]));
+
+      const { data: tasks, error: tasksError } = await client
+        .from("project_tasks")
+        .select("id, project_id, title, criticality, sort_order, completed_at")
+        .in("project_id", projectIds)
         .or(`completed_at.is.null,completed_at.gte.${todayDate()}`)
         .order("sort_order", { ascending: true });
 
@@ -158,6 +192,23 @@ export function useAddProjectTask() {
       queryClient.invalidateQueries({ queryKey: ["project-tasks", variables.projectId] });
       queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
       queryClient.invalidateQueries({ queryKey: KEY_TASKS_KEY });
+      queryClient.invalidateQueries({ queryKey: ALL_PROJECT_TASKS_KEY });
+    },
+  });
+}
+
+export function useUpdateProjectTaskTitle() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, title }: { id: string; projectId: string; title: string }) => {
+      const { error } = await getTasksClient().from("project_tasks").update({ title }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: KEY_TASKS_KEY });
+      queryClient.invalidateQueries({ queryKey: ALL_PROJECT_TASKS_KEY });
     },
   });
 }
@@ -180,6 +231,7 @@ export function useUpdateProjectTaskCriticality() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["project-tasks", variables.projectId] });
       queryClient.invalidateQueries({ queryKey: KEY_TASKS_KEY });
+      queryClient.invalidateQueries({ queryKey: ALL_PROJECT_TASKS_KEY });
     },
   });
 }
@@ -188,17 +240,48 @@ export function useToggleProjectTask() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, done }: { id: string; projectId: string; done: boolean }) => {
-      const { error } = await getTasksClient()
+    mutationFn: async ({
+      id,
+      title,
+      done,
+    }: {
+      id: string;
+      projectId: string;
+      title: string;
+      done: boolean;
+    }) => {
+      const client = getTasksClient();
+      const { error } = await client
         .from("project_tasks")
         .update({ completed_at: done ? new Date().toISOString() : null })
         .eq("id", id);
       if (error) throw error;
+
+      // Peegelda tehtud projekti-task selle päeva taskide alla (sama tabelit näeb ka TaskZen).
+      if (done) {
+        const { data: sessionData } = await client.auth.getSession();
+        const userId = sessionData.session?.user.id;
+        if (!userId) throw new Error("Pole sisse logitud");
+
+        const { error: mirrorError } = await client.from("tasks").upsert(
+          { title, date: todayDate(), done: true, user_id: userId, project_task_id: id },
+          { onConflict: "project_task_id,date", ignoreDuplicates: true },
+        );
+        if (mirrorError) throw mirrorError;
+      } else {
+        const { error: mirrorError } = await client
+          .from("tasks")
+          .delete()
+          .eq("project_task_id", id);
+        if (mirrorError) throw mirrorError;
+      }
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["project-tasks", variables.projectId] });
       queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
       queryClient.invalidateQueries({ queryKey: KEY_TASKS_KEY });
+      queryClient.invalidateQueries({ queryKey: ALL_PROJECT_TASKS_KEY });
+      queryClient.invalidateQueries({ queryKey: TODAY_TASKS_KEY });
     },
   });
 }
@@ -215,6 +298,7 @@ export function useDeleteProjectTask() {
       queryClient.invalidateQueries({ queryKey: ["project-tasks", variables.projectId] });
       queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
       queryClient.invalidateQueries({ queryKey: KEY_TASKS_KEY });
+      queryClient.invalidateQueries({ queryKey: ALL_PROJECT_TASKS_KEY });
     },
   });
 }
