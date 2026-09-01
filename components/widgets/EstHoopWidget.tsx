@@ -80,11 +80,11 @@ function useCountdown(targetTimestamp: number): Countdown | null {
   return countdown;
 }
 
-function TeamBlock({ flag, name }: { flag: string; name: string }) {
+function TeamBlock({ flag, name }: { flag: string | null; name: string }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
       <span className="text-4xl leading-none" aria-hidden>
-        {flag}
+        {flag ?? "🏀"}
       </span>
       <span className="max-w-full truncate text-base font-semibold text-foreground">{name}</span>
     </div>
