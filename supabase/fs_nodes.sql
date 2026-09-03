@@ -27,3 +27,6 @@ create policy "Users manage own fs_nodes"
   for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- Lohistamise järjekord (lisatud hiljem). Olemasolevas tabelis jooksuta ainult see rida:
+alter table public.fs_nodes add column position integer not null default 0;
