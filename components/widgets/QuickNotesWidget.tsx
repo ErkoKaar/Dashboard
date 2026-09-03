@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { StickyNote } from "lucide-react";
 import { Card } from "@/components/ui/Card";
+import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import { useQuickNote, useSaveQuickNote } from "@/lib/queries/useQuickNotes";
@@ -11,34 +12,31 @@ const SAVE_DELAY = 800;
 
 export function QuickNotesWidget() {
   const { data, isLoading, error } = useQuickNote();
-  const saveNote = useSaveQuickNote();
+  const { mutate: saveNote, error: saveError } = useSaveQuickNote();
 
-  const [value, setValue] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
-  const hasLoaded = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    if (!hasLoaded.current && data !== undefined) {
-      setValue(data);
-      hasLoaded.current = true;
-    }
-  }, [data]);
+  // Viimane salvestamata sisu, et tabi vahetamisel muudatused kaduma ei läheks.
+  const pendingRef = useRef<string | null>(null);
 
   useEffect(() => {
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (pendingRef.current !== null) saveNote(pendingRef.current);
     };
-  }, []);
+  }, [saveNote]);
 
-  function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    const next = e.target.value;
-    setValue(next);
+  function scheduleSave(html: string) {
     setStatus("saving");
+    pendingRef.current = html;
 
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
-      saveNote.mutate(next, { onSuccess: () => setStatus("saved") });
+      pendingRef.current = null;
+      saveNote(html, {
+        onSuccess: () => setStatus("saved"),
+        onError: () => setStatus("idle"),
+      });
     }, SAVE_DELAY);
   }
 
@@ -56,15 +54,10 @@ export function QuickNotesWidget() {
       ) : error ? (
         <p className="text-sm text-destructive">Märkmete laadimine ebaõnnestus.</p>
       ) : (
-        <textarea
-          value={value}
-          onChange={handleChange}
-          placeholder="Kirjuta oma märge siia..."
-          className="min-h-[440px] w-full flex-1 resize-none rounded-lg border border-border/50 bg-background px-4 py-3 text-lg leading-relaxed text-foreground placeholder:text-muted/60 outline-none transition-colors duration-200 focus:border-accent"
-        />
+        <RichTextEditor content={data} onChange={scheduleSave} placeholder="Kirjuta oma märge siia..." />
       )}
 
-      {saveNote.error && <p className="mt-2 text-sm text-destructive">Salvestamine ebaõnnestus.</p>}
+      {saveError && <p className="mt-2 text-sm text-destructive">Salvestamine ebaõnnestus.</p>}
     </Card>
   );
 }

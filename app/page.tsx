@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { ListChecks, LogOut, StickyNote, User } from "lucide-react";
+import { FolderTree, ListChecks, LogOut, StickyNote, User } from "lucide-react";
 import { ClockWidget } from "@/components/widgets/ClockWidget";
 import { WeatherWidget } from "@/components/widgets/WeatherWidget";
 import { LoginForm } from "@/components/auth/LoginForm";
@@ -102,6 +102,18 @@ export default function DashboardPage() {
             >
               <StickyNote className="h-3.5 w-3.5" aria-hidden />
               Quick Notes
+            </button>
+            <button
+              onClick={() => setDashboardContext("files")}
+              aria-pressed={dashboardContext === "files"}
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors duration-200 ${
+                dashboardContext === "files"
+                  ? "bg-accent text-background"
+                  : "text-muted hover:text-foreground"
+              }`}
+            >
+              <FolderTree className="h-3.5 w-3.5" aria-hidden />
+              File system
             </button>
           </div>
 

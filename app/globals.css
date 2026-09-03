@@ -142,3 +142,43 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Tiptap editor (File system + Quick Notes) — Tailwindi reset nullib pealkirjad/bold/underline. */
+.rich-editor .ProseMirror {
+  min-height: 440px;
+  outline: none;
+}
+
+.rich-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: rgb(var(--muted-rgb) / 0.6);
+}
+
+.rich-editor .ProseMirror h1 {
+  margin: 0.6em 0 0.3em;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.rich-editor .ProseMirror h2 {
+  margin: 0.6em 0 0.3em;
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.rich-editor .ProseMirror p {
+  margin: 0 0 0.5em;
+}
+
+.rich-editor .ProseMirror strong {
+  font-weight: 700;
+}
+
+.rich-editor .ProseMirror u {
+  text-decoration: underline;
+}

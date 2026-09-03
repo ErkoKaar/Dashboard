@@ -7,8 +7,9 @@ import { CalendarWidget } from "@/components/widgets/CalendarWidget";
 import { EstHoopWidget } from "@/components/widgets/EstHoopWidget";
 import { QuickNotesWidget } from "@/components/widgets/QuickNotesWidget";
 import { TaskManagerWidget } from "@/components/widgets/TaskManagerWidget";
+import { FileSystemWidget } from "@/components/widgets/FileSystemWidget";
 
-export type DashboardContext = "personal" | "taskmanager" | "notes";
+export type DashboardContext = "personal" | "taskmanager" | "notes" | "files";
 
 export interface WidgetDefinition {
   id: string;
@@ -30,4 +31,5 @@ export const WIDGET_REGISTRY: WidgetDefinition[] = [
   { id: "esthoop", Component: EstHoopWidget, colSpan: HALF, context: "personal" },
   { id: "taskmanager", Component: TaskManagerWidget, colSpan: FULL, context: "taskmanager" },
   { id: "quick-notes", Component: QuickNotesWidget, colSpan: FULL, context: "notes" },
+  { id: "file-system", Component: FileSystemWidget, colSpan: FULL, context: "files" },
 ];
