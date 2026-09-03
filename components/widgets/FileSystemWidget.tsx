@@ -50,7 +50,7 @@ function buildChildrenMap(nodes: FsNode[]): ChildrenMap {
     if (list) list.push(node);
     else map.set(key, [node]);
   }
-  for (const list of map.values()) list.sort(compareNodes);
+  map.forEach((list) => list.sort(compareNodes));
   return map;
 }
 
