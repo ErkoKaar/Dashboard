@@ -43,6 +43,8 @@ import {
 
 const SAVE_DELAY = 800;
 const ROOT_KEY = "__root__";
+// Viimati avatud fail ja avatud kaustad jäävad meelde ka tabi vahetamisel / lehe värskendamisel.
+const STORAGE_KEY = "fs-widget-state";
 const INDENT_PX = 16;
 
 type ChildrenMap = Map<string, FsNode[]>;
@@ -407,6 +409,37 @@ export function FileSystemWidget() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  // Salvestamine on lubatud alles pärast taastamist, muidu kirjutaks esimene render tühja oleku peale.
+  // State (mitte ref), et salvestav effect jookseks alles taastatud väärtustega renderdusel.
+  const [restored, setRestored] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const saved: unknown = JSON.parse(raw);
+        if (saved && typeof saved === "object") {
+          const { selectedId: savedId, expanded: savedExpanded } = saved as Record<string, unknown>;
+          if (typeof savedId === "string") setSelectedId(savedId);
+          if (Array.isArray(savedExpanded)) {
+            setExpanded(new Set(savedExpanded.filter((x): x is string => typeof x === "string")));
+          }
+        }
+      }
+    } catch {
+      // Vigane või kättesaamatu localStorage — alustame tühjast olekust.
+    }
+    setRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ selectedId, expanded: Array.from(expanded) }));
+    } catch {
+      // localStorage võib olla keelatud — siis lihtsalt ei jää meelde.
+    }
+  }, [restored, selectedId, expanded]);
   // Ref-peeglid, sest onDragEnd loeb neid väljaspool React'i renderdustsüklit.
   const dropTargetRef = useRef<DropTarget | null>(null);
   const pointerYRef = useRef(0);
