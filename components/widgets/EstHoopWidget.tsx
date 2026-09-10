@@ -7,6 +7,12 @@ import { TabButton } from "@/components/ui/TabButton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import { Basketball } from "@/components/ui/icons/Basketball";
 import { EstHoopEvent, useEstHoopGames, useEstHoopTopScorer } from "@/lib/queries/useEstHoopGames";
+import {
+  ClubResult,
+  ClubScheduleGame,
+  useEstHoopClubResults,
+  useEstHoopClubSchedule,
+} from "@/lib/queries/useEstHoopClub";
 import { countryFlag } from "@/lib/countryFlags";
 
 // Player photos are served as static assets from the EstHoop frontend deploy,
@@ -15,7 +21,7 @@ const ESTHOOP_FRONTEND_URL = "https://est-hoop.vercel.app";
 const PHOTO_EXTENSIONS = ["webp", "jpg", "png"];
 const ESTONIA_FLAG = "🇪🇪";
 
-type Tab = "next" | "last";
+type Tab = "next" | "last" | "schedule" | "results";
 
 function opponentName(event: EstHoopEvent): string {
   return event.homeTeam.name === "Estonia" ? event.awayTeam.name : event.homeTeam.name;
@@ -44,6 +50,21 @@ function formatShortDate(timestamp: number): string {
   return new Date(timestamp * 1000).toLocaleDateString("et-EE", {
     day: "2-digit",
     month: "2-digit",
+  });
+}
+
+// Klubiridade kuupäev tuleb serverist juba õiges vööndis ISO stringina, nii et
+// siin pole ajavööndi arvutust vaja: "2026-09-19" -> "19.09".
+function formatIsoDay(date: string): string {
+  const [, month, day] = date.split("-");
+  return `${day}.${month}`;
+}
+
+function formatClubTime(timestamp: number): string {
+  return new Date(timestamp * 1000).toLocaleTimeString("et-EE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Tallinn",
   });
 }
 
@@ -210,8 +231,24 @@ function LastResultSection({ event }: { event: EstHoopEvent }) {
   );
 }
 
-function PlayerPhoto({ slug, name }: { slug: string | null; name: string }) {
+// Väiksem variant kannab rõngast, mis teeb kaks tööd korraga: annab üksikule
+// näole selge serva ja eraldab kõrvuti laotud näod klubis, kus mängijaid on mitu.
+const PHOTO_SIZES = {
+  sm: { box: "h-10 w-10", initials: "text-[10px]", ring: "ring-2 ring-background" },
+  lg: { box: "h-16 w-16", initials: "text-sm", ring: "" },
+} as const;
+
+function PlayerPhoto({
+  slug,
+  name,
+  size = "lg",
+}: {
+  slug: string | null;
+  name: string;
+  size?: keyof typeof PHOTO_SIZES;
+}) {
   const [extIndex, setExtIndex] = useState(0);
+  const { box, initials: initialsSize, ring } = PHOTO_SIZES[size];
 
   if (!slug || extIndex >= PHOTO_EXTENSIONS.length) {
     const initials = name
@@ -221,7 +258,9 @@ function PlayerPhoto({ slug, name }: { slug: string | null; name: string }) {
       .slice(0, 2)
       .toUpperCase();
     return (
-      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-semibold text-background">
+      <div
+        className={`flex ${box} ${ring} shrink-0 items-center justify-center rounded-full bg-accent ${initialsSize} font-semibold text-background`}
+      >
         {initials}
       </div>
     );
@@ -232,7 +271,7 @@ function PlayerPhoto({ slug, name }: { slug: string | null; name: string }) {
     <img
       src={`${ESTHOOP_FRONTEND_URL}/players/${slug}.${PHOTO_EXTENSIONS[extIndex]}`}
       alt={name}
-      className="h-16 w-16 shrink-0 rounded-full object-cover object-top"
+      className={`${box} ${ring} shrink-0 rounded-full bg-surface object-cover object-top`}
       onError={() => setExtIndex((i) => i + 1)}
     />
   );
@@ -265,6 +304,133 @@ function TopScorerSection() {
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+const CLUB_ROW = "flex items-start gap-3 py-2.5 text-sm";
+
+function ClubScheduleRow({ game }: { game: ClubScheduleGame }) {
+  return (
+    <div className={CLUB_ROW}>
+      {/* Klubi, kus meie mängijaid on mitu, saab näod kõrvuti laotult. */}
+      <div className="flex shrink-0 -space-x-3">
+        {game.players.map((player) => (
+          <PlayerPhoto key={player.slug} slug={player.slug} name={player.name} size="sm" />
+        ))}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-semibold text-foreground">
+          {game.players.map((player) => player.name).join(", ")}
+        </p>
+        <p className="truncate text-xs text-muted">
+          {game.club} {game.home ? "vs" : "@"} {game.opponent}
+          {game.competition && ` · ${game.competition}`}
+        </p>
+      </div>
+      <div className="shrink-0 text-right font-mono tabular-nums">
+        <p className="text-sm font-semibold text-foreground">{formatIsoDay(game.date)}</p>
+        <p className="text-xs text-muted">
+          {game.startTimestamp == null ? "aeg selgub" : formatClubTime(game.startTimestamp)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** Protokolli number koos sildiga, sama käsitlus mis koondise tippmängijal. */
+function StatPair({ value, label }: { value: number | null; label: string }) {
+  if (value == null) return null;
+
+  return (
+    <p>
+      <span className="font-mono text-sm font-semibold tabular-nums text-foreground">{value}</span>{" "}
+      <span className="text-[10px] text-muted">{label}</span>
+    </p>
+  );
+}
+
+function ClubResultRow({ result }: { result: ClubResult }) {
+  // Värvi kannab ainult skoor; sõna "võit"/"kaotus" ütleb sama ka siis, kui
+  // värvi ei eristata.
+  const outcome =
+    result.won == null ? "text-foreground" : result.won ? "text-positive" : "text-destructive";
+
+  const row = (
+    <>
+      <PlayerPhoto slug={result.slug} name={result.player} size="sm" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-semibold text-foreground">{result.player}</p>
+        <p className="truncate text-xs text-muted">
+          {result.club ?? "Klubi teadmata"} {result.home ? "vs" : "@"} {result.opponent}
+          {result.league && ` · ${result.league}`}
+        </p>
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-3">
+          <StatPair value={result.pts} label="PTS" />
+          <StatPair value={result.reb} label="REB" />
+          <StatPair value={result.ast} label="AST" />
+          <StatPair value={result.min} label="MIN" />
+        </div>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="font-mono text-[10px] tabular-nums text-muted">{formatIsoDay(result.date)}</p>
+        <p className={`font-mono text-base font-semibold tabular-nums ${outcome}`}>
+          {result.own}–{result.against}
+        </p>
+        {result.won != null && (
+          <p className={`text-[10px] ${outcome}`}>{result.won ? "võit" : "kaotus"}</p>
+        )}
+      </div>
+    </>
+  );
+
+  // Protokolli link annab hover-olekule sisu; vanematel ridadel URL puudub.
+  if (!result.gameUrl) return <div className={CLUB_ROW}>{row}</div>;
+
+  return (
+    <a
+      href={result.gameUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`${CLUB_ROW} rounded-lg transition-colors duration-200 hover:bg-surface-hover/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent`}
+    >
+      {row}
+    </a>
+  );
+}
+
+function ClubScheduleTab() {
+  const { data, isLoading, error } = useEstHoopClubSchedule();
+
+  if (isLoading) return <Skeleton className="h-24 w-full" />;
+  if (error || !data)
+    return <p className="text-sm text-destructive">Klubigraafiku laadimine ebaõnnestus.</p>;
+  if (data.length === 0)
+    return <p className="text-sm text-muted">Ühtki tulevast klubimängu graafikus pole.</p>;
+
+  return (
+    <div className="divide-y divide-border/30">
+      {data.map((game) => (
+        <ClubScheduleRow key={game.id} game={game} />
+      ))}
+    </div>
+  );
+}
+
+function ClubResultsTab() {
+  const { data, isLoading, error } = useEstHoopClubResults();
+
+  if (isLoading) return <Skeleton className="h-24 w-full" />;
+  if (error || !data)
+    return <p className="text-sm text-destructive">Klubitulemuste laadimine ebaõnnestus.</p>;
+  if (data.length === 0)
+    return <p className="text-sm text-muted">Klubimängude tulemusi veel pole.</p>;
+
+  return (
+    <div className="divide-y divide-border/30">
+      {data.map((result) => (
+        <ClubResultRow key={result.id} result={result} />
+      ))}
     </div>
   );
 }
@@ -318,22 +484,33 @@ export function EstHoopWidget() {
 
   return (
     <Card>
-      <div className="mb-4 flex shrink-0 items-center justify-between">
+      <div className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-y-2">
         <WidgetTitle icon={Basketball} href="https://est-hoop.vercel.app/koondis">
           EstHoop
         </WidgetTitle>
-        <div className="flex gap-1">
-          <TabButton className="w-24" active={tab === "next"} onClick={() => setTab("next")}>
+        {/* Hiusjoon eraldab koondise tabid klubikorvpalli omadest. */}
+        <div className="flex items-center gap-1">
+          <TabButton active={tab === "next"} onClick={() => setTab("next")}>
             Mäng
           </TabButton>
-          <TabButton className="w-24" active={tab === "last"} onClick={() => setTab("last")}>
+          <TabButton active={tab === "last"} onClick={() => setTab("last")}>
             Viimane mäng
+          </TabButton>
+          <span className="mx-1 h-3 w-px shrink-0 bg-border/60" aria-hidden />
+          <TabButton active={tab === "schedule"} onClick={() => setTab("schedule")}>
+            Ajakava
+          </TabButton>
+          <TabButton active={tab === "results"} onClick={() => setTab("results")}>
+            Tulemused
           </TabButton>
         </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        {tab === "next" ? <NextGameTab /> : <LastGameTab />}
+        {tab === "next" && <NextGameTab />}
+        {tab === "last" && <LastGameTab />}
+        {tab === "schedule" && <ClubScheduleTab />}
+        {tab === "results" && <ClubResultsTab />}
       </div>
     </Card>
   );
