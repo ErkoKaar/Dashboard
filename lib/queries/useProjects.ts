@@ -22,6 +22,8 @@ export interface ProjectTask {
   criticality: Criticality;
   sort_order: number;
   completed_at: string | null;
+  /** Päev, mil task ilmub ka Today's Tasks alla. */
+  due_date: string | null;
 }
 
 export interface KeyTask extends ProjectTask {
@@ -81,7 +83,7 @@ export function useKeyTasks(section: ProjectSection = "projects", enabled = true
 
       const { data: tasks, error: tasksError } = await client
         .from("project_tasks")
-        .select("id, project_id, title, criticality, sort_order, completed_at")
+        .select("id, project_id, title, criticality, sort_order, completed_at, due_date")
         .in("project_id", projectIds)
         .eq("criticality", "critical")
         .or(`completed_at.is.null,completed_at.gte.${todayDate()}`)
@@ -114,7 +116,7 @@ export function useAllProjectTasks(section: ProjectSection) {
 
       const { data: tasks, error: tasksError } = await client
         .from("project_tasks")
-        .select("id, project_id, title, criticality, sort_order, completed_at")
+        .select("id, project_id, title, criticality, sort_order, completed_at, due_date")
         .in("project_id", projectIds)
         .or(`completed_at.is.null,completed_at.gte.${todayDate()}`)
         .order("sort_order", { ascending: true });
@@ -161,7 +163,7 @@ export function useProjectTasks(projectId: string, enabled: boolean) {
     queryFn: async (): Promise<ProjectTask[]> => {
       const { data, error } = await getTasksClient()
         .from("project_tasks")
-        .select("id, project_id, title, criticality, sort_order, completed_at")
+        .select("id, project_id, title, criticality, sort_order, completed_at, due_date")
         .eq("project_id", projectId)
         .or(`completed_at.is.null,completed_at.gte.${todayDate()}`)
         .order("sort_order", { ascending: true });
@@ -209,6 +211,106 @@ export function useUpdateProjectTaskTitle() {
       queryClient.invalidateQueries({ queryKey: ["project-tasks", variables.projectId] });
       queryClient.invalidateQueries({ queryKey: KEY_TASKS_KEY });
       queryClient.invalidateQueries({ queryKey: ALL_PROJECT_TASKS_KEY });
+      queryClient.invalidateQueries({ queryKey: TODAY_TASKS_KEY });
+    },
+  });
+}
+
+/** Kuupäeva määramine või tühjendamine (null = task kaob Today's Tasks alt). */
+export function useUpdateProjectTaskDueDate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      dueDate,
+    }: {
+      id: string;
+      projectId: string;
+      dueDate: string | null;
+    }) => {
+      const { error } = await getTasksClient()
+        .from("project_tasks")
+        .update({ due_date: dueDate })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: KEY_TASKS_KEY });
+      queryClient.invalidateQueries({ queryKey: ALL_PROJECT_TASKS_KEY });
+      queryClient.invalidateQueries({ queryKey: TODAY_TASKS_KEY });
+    },
+  });
+}
+
+/** Taski tõstmine teise projekti alla; sektsioon tuleb kaasa uue projektiga. */
+export function useUpdateProjectTaskProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      newProjectId,
+    }: {
+      id: string;
+      projectId: string;
+      newProjectId: string;
+    }) => {
+      const { error } = await getTasksClient()
+        .from("project_tasks")
+        .update({ project_id: newProjectId })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", variables.newProjectId] });
+      queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
+      queryClient.invalidateQueries({ queryKey: KEY_TASKS_KEY });
+      queryClient.invalidateQueries({ queryKey: ALL_PROJECT_TASKS_KEY });
+      queryClient.invalidateQueries({ queryKey: TODAY_TASKS_KEY });
+    },
+  });
+}
+
+/**
+ * Päevatask projekti alla. Tabel vahetub, nii et rida luuakse uuesti ja vana
+ * kustutatakse — ID vahetub. Lisame enne kustutamist, et ebaõnnestumise korral
+ * task ära ei kaoks.
+ */
+export function useMoveTaskToProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      taskId,
+      projectId,
+      title,
+    }: {
+      taskId: string;
+      projectId: string;
+      title: string;
+    }) => {
+      const client = getTasksClient();
+      const { data: sessionData } = await client.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) throw new Error("Pole sisse logitud");
+
+      const { error: insertError } = await client
+        .from("project_tasks")
+        .insert({ project_id: projectId, title, user_id: userId });
+      if (insertError) throw insertError;
+
+      const { error: deleteError } = await client.from("tasks").delete().eq("id", taskId);
+      if (deleteError) throw deleteError;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
+      queryClient.invalidateQueries({ queryKey: KEY_TASKS_KEY });
+      queryClient.invalidateQueries({ queryKey: ALL_PROJECT_TASKS_KEY });
+      queryClient.invalidateQueries({ queryKey: TODAY_TASKS_KEY });
     },
   });
 }
@@ -299,6 +401,7 @@ export function useDeleteProjectTask() {
       queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
       queryClient.invalidateQueries({ queryKey: KEY_TASKS_KEY });
       queryClient.invalidateQueries({ queryKey: ALL_PROJECT_TASKS_KEY });
+      queryClient.invalidateQueries({ queryKey: TODAY_TASKS_KEY });
     },
   });
 }

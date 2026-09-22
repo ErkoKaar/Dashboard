@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, GripVertical, ListChecks, Plus, X } from "lucide-react";
 import {
   DndContext,
@@ -29,9 +29,12 @@ import {
   useAddProjectTask,
   useAllProjectTasks,
   useDeleteProjectTask,
+  useMoveTaskToProject,
   useProjects,
   useToggleProjectTask,
   useUpdateProjectTaskCriticality,
+  useUpdateProjectTaskDueDate,
+  useUpdateProjectTaskProject,
   useUpdateProjectTaskTitle,
 } from "@/lib/queries/useProjects";
 import { useTaskManagerOrder, useUpdateTaskManagerOrder } from "@/lib/queries/useTaskManagerOrder";
@@ -58,6 +61,11 @@ function nextCriticality(current: Criticality): Criticality {
   return CRITICALITY_ORDER[(i + 1) % CRITICALITY_ORDER.length];
 }
 
+interface ProjectOption {
+  id: string;
+  label: string;
+}
+
 interface TaskItem {
   key: string;
   source: FilterKey;
@@ -66,10 +74,125 @@ interface TaskItem {
   done: boolean;
   label: string;
   criticality?: Criticality;
+  /** Päev, mil task ilmub Today's Tasks alla; ainult projekti-taskil. */
+  dueDate: string | null;
+  projectOptions: ProjectOption[];
+  projectValue: string;
   onToggle: () => void;
   onRename: (title: string) => void;
   onDelete: () => void;
+  onChangeProject: (id: string) => void;
   onCycleCriticality?: () => void;
+  /** Puudub päevataskil — tema kuupäev on tasks-tabeli rida ise. */
+  onSetDueDate?: (date: string | null) => void;
+}
+
+/**
+ * Vaikimisi järjekord, kui rida pole lohistatud: Today read enne projektitaske,
+ * siis kuupäev varasemast hilisemani, kuupäevata read lõppu.
+ */
+function defaultCompare(a: TaskItem, b: TaskItem): number {
+  const aToday = a.source === "today" ? 0 : 1;
+  const bToday = b.source === "today" ? 0 : 1;
+  if (aToday !== bToday) return aToday - bToday;
+
+  if (a.dueDate === b.dueDate) return 0;
+  if (!a.dueDate) return 1;
+  if (!b.dueDate) return -1;
+  return a.dueDate < b.dueDate ? -1 : 1;
+}
+
+const DATE_INPUT_CLASS =
+  "shrink-0 rounded-lg border border-border/60 bg-transparent px-2 py-1 font-mono text-xs text-muted outline-none transition-colors duration-200 [color-scheme:dark] hover:text-foreground focus:border-accent";
+
+// max-h-48 + ääred; kaardil on overflow-hidden, nii et alumiste ridade menüü
+// tuleb avada ülespoole, muidu jääb see kaardi serva taha kinni.
+const PROJECT_MENU_HEIGHT = 200;
+
+/** Projektisilt, mis avab klõpsates projektide nimekirja. */
+function ProjectPill({ item }: { item: TaskItem }) {
+  const [open, setOpen] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  function toggleMenu() {
+    if (!open) {
+      const pill = ref.current?.getBoundingClientRect();
+      const list = ref.current?.closest("ul")?.getBoundingClientRect();
+      setOpenUp(!!pill && !!list && list.bottom - pill.bottom < PROJECT_MENU_HEIGHT);
+    }
+    setOpen((v) => !v);
+  }
+
+  return (
+    <span
+      ref={ref}
+      className={`relative flex shrink-0 items-center gap-2 rounded-full border border-border/60 px-2.5 py-1 ${
+        item.done ? "opacity-50" : ""
+      }`}
+    >
+      <button
+        type="button"
+        onClick={toggleMenu}
+        className="cursor-pointer text-xs uppercase tracking-wide text-muted transition-colors duration-200 hover:text-foreground"
+        aria-label={`Projekt: ${item.label} (klõpsa vahetamiseks)`}
+      >
+        {item.label}
+      </button>
+      {item.criticality &&
+        (item.onCycleCriticality ? (
+          <button
+            type="button"
+            onClick={item.onCycleCriticality}
+            className={`h-3 w-3 shrink-0 cursor-pointer rounded-full ${CRITICALITY_CLASS[item.criticality]}`}
+            aria-label={`Kriitilisus: ${item.criticality} (klõpsa muutmiseks)`}
+          />
+        ) : (
+          <span
+            className={`h-3 w-3 rounded-full ${CRITICALITY_CLASS[item.criticality]}`}
+            aria-label={`Kriitilisus: ${item.criticality}`}
+          />
+        ))}
+
+      {open && (
+        <div
+          className={`absolute right-0 z-20 max-h-48 w-44 overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)] ${
+            openUp ? "bottom-[calc(100%+4px)]" : "top-[calc(100%+4px)]"
+          }`}
+        >
+          {item.projectOptions.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                if (o.id !== item.projectValue) item.onChangeProject(o.id);
+              }}
+              className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors duration-200 ${
+                o.id === item.projectValue
+                  ? "bg-surface-hover text-foreground"
+                  : "text-muted hover:bg-surface-hover/60 hover:text-foreground"
+              }`}
+            >
+              <span className="truncate">{o.label}</span>
+              {o.id === item.projectValue && (
+                <Check className="h-3 w-3 shrink-0 text-accent" aria-hidden />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
+  );
 }
 
 function SortableTaskRow({ item }: { item: TaskItem }) {
@@ -139,27 +262,16 @@ function SortableTaskRow({ item }: { item: TaskItem }) {
           Today
         </span>
       )}
-      <span
-        className={`flex shrink-0 items-center gap-2 rounded-full border border-border/60 px-2.5 py-1 ${
-          item.done ? "opacity-50" : ""
-        }`}
-      >
-        <span className="text-xs uppercase tracking-wide text-muted">{item.label}</span>
-        {item.criticality &&
-          (item.onCycleCriticality ? (
-            <button
-              type="button"
-              onClick={item.onCycleCriticality}
-              className={`h-3 w-3 shrink-0 cursor-pointer rounded-full ${CRITICALITY_CLASS[item.criticality]}`}
-              aria-label={`Kriitilisus: ${item.criticality} (klõpsa muutmiseks)`}
-            />
-          ) : (
-            <span
-              className={`h-3 w-3 rounded-full ${CRITICALITY_CLASS[item.criticality]}`}
-              aria-label={`Kriitilisus: ${item.criticality}`}
-            />
-          ))}
-      </span>
+      {item.onSetDueDate && (
+        <input
+          type="date"
+          value={item.dueDate ?? ""}
+          onChange={(e) => item.onSetDueDate?.(e.target.value || null)}
+          className={`${DATE_INPUT_CLASS} ${item.done ? "opacity-50" : ""}`}
+          aria-label="Taski kuupäev"
+        />
+      )}
+      <ProjectPill item={item} />
       <button
         type="button"
         onClick={item.onDelete}
@@ -180,6 +292,10 @@ export function TaskManagerWidget() {
   });
   // Projektid, mille taskid on eraldi peidetud (vaikimisi kõik nähtavad).
   const [hiddenProjects, setHiddenProjects] = useState<Set<string>>(new Set());
+  // "all" = filter väljas, checkboxid otsustavad. Muidu näidatakse ainult seda projekti.
+  const [onlyProject, setOnlyProject] = useState("all");
+  // Tühi = praegune käitumine (päevataskid tänasest). Täidetuna selle päeva taskid.
+  const [filterDate, setFilterDate] = useState("");
 
   function toggleProject(id: string) {
     setHiddenProjects((prev) => {
@@ -189,7 +305,7 @@ export function TaskManagerWidget() {
       return next;
     });
   }
-  const todayTasks = useTodayTasks();
+  const todayTasks = useTodayTasks(filterDate || undefined);
   const personalTasks = useAllProjectTasks("personal");
   const projectTasks = useAllProjectTasks("projects");
   const orderQuery = useTaskManagerOrder();
@@ -203,6 +319,9 @@ export function TaskManagerWidget() {
   const deleteProjectTask = useDeleteProjectTask();
   const updateProjectTaskTitle = useUpdateProjectTaskTitle();
   const updateProjectTaskCriticality = useUpdateProjectTaskCriticality();
+  const updateProjectTaskDueDate = useUpdateProjectTaskDueDate();
+  const updateProjectTaskProject = useUpdateProjectTaskProject();
+  const moveTaskToProject = useMoveTaskToProject();
 
   const [newTitle, setNewTitle] = useState("");
   const [newCategory, setNewCategory] = useState("today");
@@ -227,16 +346,27 @@ export function TaskManagerWidget() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
-  const noneActive = FILTERS.every((f) => !active[f.key]);
+  // Ühe projekti valik tühistab checkboxid — siis loevad ainult projektiallikad.
+  const filterByProject = onlyProject !== "all";
+  const sourceOn = (key: FilterKey) => (filterByProject ? key !== "today" : active[key]);
+
+  const noneActive = !filterByProject && FILTERS.every((f) => !active[f.key]);
   const isLoading =
     orderQuery.isLoading ||
-    (active.today && todayTasks.isLoading) ||
-    (active.personal && personalTasks.isLoading) ||
-    (active.projects && projectTasks.isLoading);
+    (sourceOn("today") && todayTasks.isLoading) ||
+    (sourceOn("personal") && personalTasks.isLoading) ||
+    (sourceOn("projects") && projectTasks.isLoading);
   const hasError =
-    (active.today && todayTasks.error) ||
-    (active.personal && personalTasks.error) ||
-    (active.projects && projectTasks.error);
+    (sourceOn("today") && todayTasks.error) ||
+    (sourceOn("personal") && personalTasks.error) ||
+    (sourceOn("projects") && projectTasks.error);
+
+  const projectOptions: ProjectOption[] = (allProjects ?? []).map((p) => ({
+    id: p.id,
+    label: p.title,
+  }));
+  // Päevataski saab tõsta projekti alla; tagasi mitte, nii et "Today" on ainult praegune väärtus.
+  const todayProjectOptions: ProjectOption[] = [{ id: "today", label: "Today" }, ...projectOptions];
 
   // Tehtud projekti-taskide peegelread tasks-tabelis (project_task_id) jäetakse
   // siin vahele — projekti enda rida kannab juba TODAY silti.
@@ -246,6 +376,8 @@ export function TaskManagerWidget() {
 
   const allItems: TaskItem[] = [];
   for (const task of todayTasks.data ?? []) {
+    // Dateeritud projekti-task on nimekirjas juba oma projekti realt.
+    if (task.origin === "project_task") continue;
     if (task.project_task_id && projectTaskIds.has(task.project_task_id)) continue;
     allItems.push({
       key: `today-${task.id}`,
@@ -253,9 +385,14 @@ export function TaskManagerWidget() {
       title: task.title,
       done: task.done,
       label: "Today",
+      dueDate: null,
+      projectOptions: todayProjectOptions,
+      projectValue: "today",
       onToggle: () => updateTask.mutate({ id: task.id, done: !task.done }),
       onRename: (title) => updateTask.mutate({ id: task.id, title }),
       onDelete: () => deleteTodayTask.mutate({ id: task.id }),
+      onChangeProject: (projectId) =>
+        moveTaskToProject.mutate({ taskId: task.id, projectId, title: task.title }),
     });
   }
   for (const [source, query] of [
@@ -272,6 +409,9 @@ export function TaskManagerWidget() {
         done: taskDone,
         label: task.projectTitle,
         criticality: task.criticality,
+        dueDate: task.due_date,
+        projectOptions,
+        projectValue: task.project_id,
         onToggle: () =>
           toggleTask.mutate({
             id: task.id,
@@ -288,20 +428,36 @@ export function TaskManagerWidget() {
             projectId: task.project_id,
             criticality: nextCriticality(task.criticality),
           }),
+        onChangeProject: (newProjectId) =>
+          updateProjectTaskProject.mutate({
+            id: task.id,
+            projectId: task.project_id,
+            newProjectId,
+          }),
+        onSetDueDate: (dueDate) =>
+          updateProjectTaskDueDate.mutate({ id: task.id, projectId: task.project_id, dueDate }),
       });
     }
   }
 
   const savedOrder = orderQuery.data ?? [];
   const position = new Map(savedOrder.map((key, i) => [key, i]));
-  // Tehtud taskid tõusevad ette; muidu salvestatud järjekord, tundmatud lõppu.
   allItems.sort((a, b) => {
+    // Tehtud tõusevad ette ka siis, kui rida on varem lohistatud.
     if (a.done !== b.done) return Number(b.done) - Number(a.done);
-    return (position.get(a.key) ?? savedOrder.length) - (position.get(b.key) ?? savedOrder.length);
+    // Lohistatud read hoiavad oma kohta; ülejäänud langevad vaikejärjekorda.
+    const pa = position.get(a.key) ?? Infinity;
+    const pb = position.get(b.key) ?? Infinity;
+    if (pa !== pb) return pa - pb;
+    return defaultCompare(a, b);
   });
 
   // Tehtuks märgitud task kuulub lisaks ka "Today's tasks" kategooriasse.
   const visibleItems = allItems.filter((item) => {
+    // Päevataskid on juba selle kuupäeva kohta päritud; projekti-taskid filtreerime siin.
+    if (filterDate && item.source !== "today" && item.dueDate !== filterDate) return false;
+    if (filterByProject) return item.projectId === onlyProject;
+
     const ownVisible =
       active[item.source] && (!item.projectId || !hiddenProjects.has(item.projectId));
     return ownVisible || (item.done && active.today);
@@ -344,7 +500,51 @@ export function TaskManagerWidget() {
 
       <div className="flex min-h-0 flex-1 flex-col gap-6 md:flex-row">
         <aside className="shrink-0 border-b border-border/40 pb-5 md:w-56 md:border-b-0 md:border-r md:pb-0 md:pr-6">
-          <div className="min-w-0">
+          <div className="mb-4 min-w-0">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted">
+              Projekt
+            </p>
+            <Dropdown
+              options={[
+                { id: "all", label: "Kõik allikad" },
+                ...(allProjects ?? []).map((p) => ({
+                  id: p.id,
+                  label: p.title,
+                  count: p.taskCount,
+                })),
+              ]}
+              value={onlyProject}
+              onChange={setOnlyProject}
+            />
+          </div>
+
+          <div className="mb-4 min-w-0">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted">
+              Kuupäev
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className={`${DATE_INPUT_CLASS} min-w-0 flex-1 py-2`}
+                aria-label="Näita selle kuupäeva taske"
+              />
+              {filterDate && (
+                <button
+                  type="button"
+                  onClick={() => setFilterDate("")}
+                  className="shrink-0 cursor-pointer p-1 text-muted transition-colors duration-200 hover:text-foreground"
+                  aria-label="Tühjenda kuupäev"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Ühe projekti valikul ei mõjuta checkboxid enam midagi. */}
+          <div className={`min-w-0 ${filterByProject ? "pointer-events-none opacity-40" : ""}`}>
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted">
               Sources
             </p>
@@ -415,6 +615,16 @@ export function TaskManagerWidget() {
               ))}
             </div>
           </div>
+
+          {savedOrder.length > 0 && (
+            <button
+              type="button"
+              onClick={() => updateOrder.mutate([])}
+              className="mt-4 w-full cursor-pointer rounded-lg border border-border/60 px-2.5 py-2 text-xs text-muted transition-colors duration-200 hover:border-accent/40 hover:text-foreground"
+            >
+              Taasta vaikimisi järjekord
+            </button>
+          )}
         </aside>
 
         <div className="min-w-0 max-w-4xl flex-1">

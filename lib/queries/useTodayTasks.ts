@@ -7,22 +7,58 @@ export interface TodayTask {
   title: string;
   done: boolean;
   project_task_id: string | null;
+  /** "task" = päevatask tasks-tabelist, "project_task" = projekti-task, mille due_date on see päev. */
+  origin: "task" | "project_task";
+  /** Ainult project_task päritolul — mutatsioonid vajavad seda invalideerimiseks. */
+  projectId: string | null;
 }
 
 export const TODAY_TASKS_KEY = ["today-tasks"];
 
-export function useTodayTasks() {
+/**
+ * Selle päeva taskid kahest allikast: päevataskid tasks-tabelist ja projekti-taskid,
+ * mille due_date on sama päev. Koopiat ei tehta — projekti-task jääb üheks reaks,
+ * nii et linnuke siin lõpetab ta ka projektis.
+ */
+export function useTodayTasks(date: string = todayDate()) {
   return useQuery({
-    queryKey: TODAY_TASKS_KEY,
+    queryKey: [...TODAY_TASKS_KEY, date],
     queryFn: async (): Promise<TodayTask[]> => {
-      const { data, error } = await getTasksClient()
-        .from("tasks")
-        .select("id, title, done, project_task_id")
-        .eq("date", todayDate())
-        .order("id", { ascending: true });
+      const client = getTasksClient();
+      const [{ data: tasks, error }, { data: projectTasks, error: projectError }] =
+        await Promise.all([
+          client
+            .from("tasks")
+            .select("id, title, done, project_task_id")
+            .eq("date", date)
+            .order("id", { ascending: true }),
+          client
+            .from("project_tasks")
+            .select("id, project_id, title, completed_at")
+            .eq("due_date", date)
+            .order("sort_order", { ascending: true }),
+        ]);
 
       if (error) throw error;
-      return data ?? [];
+      if (projectError) throw projectError;
+
+      const dated: TodayTask[] = (projectTasks ?? []).map((t) => ({
+        id: t.id,
+        title: t.title,
+        done: t.completed_at !== null,
+        project_task_id: null,
+        origin: "project_task",
+        projectId: t.project_id,
+      }));
+
+      // Tehtud projekti-task peegeldatakse tasks-tabelisse (vt useToggleProjectTask).
+      // Kui tal on ka due_date, oleks ta nimekirjas kaks korda — peegelrida kukub välja.
+      const datedIds = new Set(dated.map((t) => t.id));
+      const plain: TodayTask[] = (tasks ?? [])
+        .filter((t) => !t.project_task_id || !datedIds.has(t.project_task_id))
+        .map((t) => ({ ...t, origin: "task", projectId: null }));
+
+      return [...plain, ...dated];
     },
   });
 }

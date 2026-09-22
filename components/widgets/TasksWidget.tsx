@@ -11,7 +11,12 @@ import { GalleryGrid } from "@/components/ui/GalleryGrid";
 import { GalleryCard } from "@/components/ui/GalleryCard";
 import { AddTile } from "@/components/ui/AddTile";
 import { CelebrationOverlay } from "@/components/ui/CelebrationOverlay";
-import { useAddTask, useDeleteTask, useTodayTasks, useUpdateTask } from "@/lib/queries/useTodayTasks";
+import { useAddTask, useDeleteTask, useTodayTasks, useUpdateTask, TodayTask } from "@/lib/queries/useTodayTasks";
+import {
+  useToggleProjectTask,
+  useUpdateProjectTaskDueDate,
+  useUpdateProjectTaskTitle,
+} from "@/lib/queries/useProjects";
 import { dailyScoreStatus, scoreBadge } from "@/lib/dailyScoreStatus";
 import { useCelebrateOnComplete } from "@/lib/useCelebrateOnComplete";
 
@@ -20,21 +25,59 @@ export function TasksWidget() {
   const addTask = useAddTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
+  const toggleProjectTask = useToggleProjectTask();
+  const updateProjectTaskTitle = useUpdateProjectTaskTitle();
+  const clearProjectTaskDueDate = useUpdateProjectTaskDueDate();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
 
-  const mutationError = addTask.error || updateTask.error || deleteTask.error;
+  const mutationError =
+    addTask.error ||
+    updateTask.error ||
+    deleteTask.error ||
+    toggleProjectTask.error ||
+    updateProjectTaskTitle.error ||
+    clearProjectTaskDueDate.error;
 
   function startEdit(id: string, title: string) {
     setEditingId(id);
     setEditValue(title);
   }
 
-  function commitEdit(id: string) {
+  // Projekti-task on siin sama rida mis projektis, mitte koopia — linnuke ja
+  // nimemuutus lähevad project_tasks'i, X aga ainult tühjendab kuupäeva.
+  function toggle(task: TodayTask) {
+    if (task.origin === "task") {
+      updateTask.mutate({ id: task.id, done: !task.done });
+    } else if (task.projectId) {
+      toggleProjectTask.mutate({
+        id: task.id,
+        projectId: task.projectId,
+        title: task.title,
+        done: !task.done,
+      });
+    }
+  }
+
+  function commitEdit(task: TodayTask) {
     const title = editValue.trim();
-    if (title) updateTask.mutate({ id, title });
     setEditingId(null);
+    if (!title || title === task.title) return;
+
+    if (task.origin === "task") {
+      updateTask.mutate({ id: task.id, title });
+    } else if (task.projectId) {
+      updateProjectTaskTitle.mutate({ id: task.id, projectId: task.projectId, title });
+    }
+  }
+
+  function remove(task: TodayTask) {
+    if (task.origin === "task") {
+      deleteTask.mutate({ id: task.id });
+    } else if (task.projectId) {
+      clearProjectTaskDueDate.mutate({ id: task.id, projectId: task.projectId, dueDate: null });
+    }
   }
 
   const done = data?.filter((t) => t.done).length ?? 0;
@@ -72,13 +115,13 @@ export function TasksWidget() {
                 <div className="flex items-start justify-between gap-1.5">
                   <CheckToggle
                     checked={task.done}
-                    onChange={() => updateTask.mutate({ id: task.id, done: !task.done })}
+                    onChange={() => toggle(task)}
                     aria-label={task.done ? "Märgi tegemata" : "Märgi tehtud"}
                   />
                   <button
-                    onClick={() => deleteTask.mutate({ id: task.id })}
+                    onClick={() => remove(task)}
                     className="cursor-pointer p-0.5 text-muted transition-colors duration-200 hover:text-destructive"
-                    aria-label="Kustuta"
+                    aria-label={task.origin === "task" ? "Kustuta" : "Eemalda tänasest"}
                   >
                     <X className="h-3.5 w-3.5" aria-hidden />
                   </button>
@@ -89,9 +132,9 @@ export function TasksWidget() {
                     className="border-b border-border bg-transparent text-sm text-foreground outline-none focus:border-accent"
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
-                    onBlur={() => commitEdit(task.id)}
+                    onBlur={() => commitEdit(task)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") commitEdit(task.id);
+                      if (e.key === "Enter") commitEdit(task);
                       if (e.key === "Escape") setEditingId(null);
                     }}
                   />
