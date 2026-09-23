@@ -325,6 +325,8 @@ export function TaskManagerWidget() {
 
   const [newTitle, setNewTitle] = useState("");
   const [newCategory, setNewCategory] = useState("today");
+  // Tühi = Today läheb tänasesse, projekti-task jääb kuupäevata.
+  const [newDate, setNewDate] = useState("");
 
   const categoryOptions: DropdownOption[] = [
     { id: "today", label: "Today's tasks" },
@@ -336,11 +338,12 @@ export function TaskManagerWidget() {
     const title = newTitle.trim();
     if (!title || addPending) return;
     if (newCategory === "today") {
-      addTodayTask.mutate({ title });
+      addTodayTask.mutate({ title, date: newDate || undefined });
     } else {
       if (!allProjects?.some((p) => p.id === newCategory)) return;
-      addProjectTask.mutate({ projectId: newCategory, title });
+      addProjectTask.mutate({ projectId: newCategory, title, dueDate: newDate || null });
     }
+    // Kuupäev jääb püsima — mitu taski samale päevale on tavaline.
     setNewTitle("");
   }
 
@@ -633,13 +636,20 @@ export function TaskManagerWidget() {
               e.preventDefault();
               submitNewTask();
             }}
-            className="mb-3 flex items-center gap-2 border-b border-border/40 pb-3"
+            className="mb-3 flex flex-wrap items-center gap-2 border-b border-border/40 pb-3"
           >
             <input
-              className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors duration-200 placeholder:text-muted/60 focus:border-accent"
+              className="min-w-[12rem] flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors duration-200 placeholder:text-muted/60 focus:border-accent"
               placeholder="Uus task..."
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
+            />
+            <input
+              type="date"
+              value={newDate}
+              onChange={(e) => setNewDate(e.target.value)}
+              className="shrink-0 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors duration-200 [color-scheme:dark] focus:border-accent"
+              aria-label="Uue taski kuupäev"
             />
             <Dropdown
               className="w-48 shrink-0"

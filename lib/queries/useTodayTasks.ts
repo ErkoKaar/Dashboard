@@ -67,7 +67,7 @@ export function useAddTask() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ title }: { title: string }) => {
+    mutationFn: async ({ title, date = todayDate() }: { title: string; date?: string }) => {
       const client = getTasksClient();
       const { data: sessionData } = await client.auth.getSession();
       const userId = sessionData.session?.user.id;
@@ -75,7 +75,7 @@ export function useAddTask() {
 
       const { error } = await client
         .from("tasks")
-        .insert({ title, date: todayDate(), done: false, user_id: userId });
+        .insert({ title, date, done: false, user_id: userId });
 
       if (error) throw error;
     },

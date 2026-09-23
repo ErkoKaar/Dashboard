@@ -179,7 +179,15 @@ export function useAddProjectTask() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ projectId, title }: { projectId: string; title: string }) => {
+    mutationFn: async ({
+      projectId,
+      title,
+      dueDate = null,
+    }: {
+      projectId: string;
+      title: string;
+      dueDate?: string | null;
+    }) => {
       const client = getTasksClient();
       const { data: sessionData } = await client.auth.getSession();
       const userId = sessionData.session?.user.id;
@@ -187,7 +195,7 @@ export function useAddProjectTask() {
 
       const { error } = await client
         .from("project_tasks")
-        .insert({ project_id: projectId, title, user_id: userId });
+        .insert({ project_id: projectId, title, due_date: dueDate, user_id: userId });
       if (error) throw error;
     },
     onSuccess: (_data, variables) => {
@@ -195,6 +203,8 @@ export function useAddProjectTask() {
       queryClient.invalidateQueries({ queryKey: PROJECTS_KEY });
       queryClient.invalidateQueries({ queryKey: KEY_TASKS_KEY });
       queryClient.invalidateQueries({ queryKey: ALL_PROJECT_TASKS_KEY });
+      // Tänase kuupäevaga lisatud task kuulub kohe ka Today's Tasks alla.
+      queryClient.invalidateQueries({ queryKey: TODAY_TASKS_KEY });
     },
   });
 }
