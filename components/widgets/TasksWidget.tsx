@@ -11,7 +11,14 @@ import { GalleryGrid } from "@/components/ui/GalleryGrid";
 import { GalleryCard } from "@/components/ui/GalleryCard";
 import { AddTile } from "@/components/ui/AddTile";
 import { CelebrationOverlay } from "@/components/ui/CelebrationOverlay";
-import { useAddTask, useDeleteTask, useTodayTasks, useUpdateTask, TodayTask } from "@/lib/queries/useTodayTasks";
+import {
+  useAddTask,
+  useDeleteTask,
+  useToggleCalendarTask,
+  useTodayTasks,
+  useUpdateTask,
+  TodayTask,
+} from "@/lib/queries/useTodayTasks";
 import {
   useToggleProjectTask,
   useUpdateProjectTaskDueDate,
@@ -25,6 +32,7 @@ export function TasksWidget() {
   const addTask = useAddTask();
   const updateTask = useUpdateTask();
   const deleteTask = useDeleteTask();
+  const toggleCalendarTask = useToggleCalendarTask();
   const toggleProjectTask = useToggleProjectTask();
   const updateProjectTaskTitle = useUpdateProjectTaskTitle();
   const clearProjectTaskDueDate = useUpdateProjectTaskDueDate();
@@ -36,6 +44,7 @@ export function TasksWidget() {
     addTask.error ||
     updateTask.error ||
     deleteTask.error ||
+    toggleCalendarTask.error ||
     toggleProjectTask.error ||
     updateProjectTaskTitle.error ||
     clearProjectTaskDueDate.error;
@@ -50,6 +59,8 @@ export function TasksWidget() {
   function toggle(task: TodayTask) {
     if (task.origin === "task") {
       updateTask.mutate({ id: task.id, done: !task.done });
+    } else if (task.origin === "calendar") {
+      toggleCalendarTask.mutate({ eventId: task.id, title: task.title, done: !task.done });
     } else if (task.projectId) {
       toggleProjectTask.mutate({
         id: task.id,
@@ -118,13 +129,16 @@ export function TasksWidget() {
                     onChange={() => toggle(task)}
                     aria-label={task.done ? "Märgi tegemata" : "Märgi tehtud"}
                   />
-                  <button
-                    onClick={() => remove(task)}
-                    className="cursor-pointer p-0.5 text-muted transition-colors duration-200 hover:text-destructive"
-                    aria-label={task.origin === "task" ? "Kustuta" : "Eemalda tänasest"}
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden />
-                  </button>
+                  {/* Kalendri-taski kustutamine ja muutmine käib Google Calendaris. */}
+                  {task.origin !== "calendar" && (
+                    <button
+                      onClick={() => remove(task)}
+                      className="cursor-pointer p-0.5 text-muted transition-colors duration-200 hover:text-destructive"
+                      aria-label={task.origin === "task" ? "Kustuta" : "Eemalda tänasest"}
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden />
+                    </button>
+                  )}
                 </div>
                 {editingId === task.id ? (
                   <input
@@ -140,8 +154,8 @@ export function TasksWidget() {
                   />
                 ) : (
                   <span
-                    onClick={() => startEdit(task.id, task.title)}
-                    className={`line-clamp-2 cursor-text text-sm ${
+                    onClick={() => task.origin !== "calendar" && startEdit(task.id, task.title)}
+                    className={`line-clamp-2 text-sm ${task.origin !== "calendar" ? "cursor-text" : ""} ${
                       task.done ? "font-semibold text-foreground" : "text-foreground"
                     }`}
                   >

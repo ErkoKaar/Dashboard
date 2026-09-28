@@ -381,6 +381,8 @@ export function TaskManagerWidget() {
   for (const task of todayTasks.data ?? []) {
     // Dateeritud projekti-task on nimekirjas juba oma projekti realt.
     if (task.origin === "project_task") continue;
+    // Kalendri-taskil pole tasks-rida, mida siinsed tegevused (nimi, kustutamine, projekt) muudaksid.
+    if (task.origin === "calendar") continue;
     if (task.project_task_id && projectTaskIds.has(task.project_task_id)) continue;
     allItems.push({
       key: `today-${task.id}`,

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { CalendarDays, Check, Plus } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -26,11 +26,48 @@ function addHour(time: string): string {
   return `${String((h + 1) % 24).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
+/** Sündmus on möödas, kui kellaajaline on lõppenud või terve päeva oma päev läbi. */
+function isPast(event: CalendarEvent, now: number): boolean {
+  if (event.allDay) return event.date < todayDate();
+  return event.end !== null && new Date(event.end).getTime() <= now;
+}
+
+function CheckOption({
+  checked,
+  onToggle,
+  children,
+}: {
+  checked: boolean;
+  onToggle: () => void;
+  children: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={checked}
+      className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-muted transition-colors duration-200 hover:text-foreground"
+    >
+      <span
+        className={`flex h-4 w-4 items-center justify-center rounded border transition-colors duration-200 ${
+          checked ? "border-accent bg-accent text-background" : "border-border"
+        }`}
+        aria-hidden
+      >
+        {checked && <Check className="h-3 w-3" strokeWidth={3} />}
+      </span>
+      {children}
+    </button>
+  );
+}
+
 function AddEventForm({ onDone }: { onDone: () => void }) {
   const addEvent = useAddCalendarEvent();
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(todayDate());
   const [allDay, setAllDay] = useState(false);
+  const [weekly, setWeekly] = useState(false);
+  const [task, setTask] = useState(false);
   const [start, setStart] = useState("09:00");
   const [end, setEnd] = useState("10:00");
 
@@ -42,8 +79,8 @@ function AddEventForm({ onDone }: { onDone: () => void }) {
 
     addEvent.mutate(
       allDay
-        ? { title: title.trim(), date, allDay: true }
-        : { title: title.trim(), date, allDay: false, start, end },
+        ? { title: title.trim(), date, allDay: true, weekly, task }
+        : { title: title.trim(), date, allDay: false, start, end, weekly, task },
       { onSuccess: onDone },
     );
   }
@@ -66,22 +103,18 @@ function AddEventForm({ onDone }: { onDone: () => void }) {
           onChange={(e) => setDate(e.target.value)}
           aria-label="Kuupäev"
         />
-        <button
-          type="button"
-          onClick={() => setAllDay((v) => !v)}
-          aria-pressed={allDay}
-          className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-muted transition-colors duration-200 hover:text-foreground"
-        >
-          <span
-            className={`flex h-4 w-4 items-center justify-center rounded border transition-colors duration-200 ${
-              allDay ? "border-accent bg-accent text-background" : "border-border"
-            }`}
-            aria-hidden
-          >
-            {allDay && <Check className="h-3 w-3" strokeWidth={3} />}
-          </span>
+        <CheckOption checked={allDay} onToggle={() => setAllDay((v) => !v)}>
           Terve päev
-        </button>
+        </CheckOption>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <CheckOption checked={weekly} onToggle={() => setWeekly((v) => !v)}>
+          Iga nädal
+        </CheckOption>
+        <CheckOption checked={task} onToggle={() => setTask((v) => !v)}>
+          Task
+        </CheckOption>
       </div>
 
       <div className="flex items-center gap-2">
@@ -123,9 +156,9 @@ function AddEventForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-function EventRow({ event }: { event: CalendarEvent }) {
+function EventRow({ event, now }: { event: CalendarEvent; now: number }) {
   return (
-    <li className="text-sm">
+    <li className={`text-sm ${isPast(event, now) ? "text-muted/60 line-through" : ""}`}>
       <span className="text-muted">{event.allDay ? "Terve päev" : event.time}</span> {event.title}
     </li>
   );
@@ -135,6 +168,13 @@ export function CalendarWidget() {
   const [tab, setTab] = useState<Tab>("today");
   const [adding, setAdding] = useState(false);
   const { data, isLoading, error } = useCalendarEvents();
+  // Läbikriipsutus peab tekkima ka siis, kui leht on kaua lahti.
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <Card>
@@ -178,7 +218,7 @@ export function CalendarWidget() {
           ) : (
             <ul className="space-y-1">
               {todayEvents.map((e) => (
-                <EventRow key={e.id} event={e} />
+                <EventRow key={e.id} event={e} now={now} />
               ))}
             </ul>
           );
@@ -195,7 +235,7 @@ export function CalendarWidget() {
                 </p>
                 <ul className="space-y-1">
                   {dayEvents.map((e) => (
-                    <EventRow key={e.id} event={e} />
+                    <EventRow key={e.id} event={e} now={now} />
                   ))}
                 </ul>
               </div>

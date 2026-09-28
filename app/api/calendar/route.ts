@@ -6,6 +6,8 @@ interface GoogleEvent {
   summary?: string;
   start: { date?: string; dateTime?: string };
   end: { date?: string; dateTime?: string };
+  recurringEventId?: string;
+  extendedProperties?: { private?: Record<string, string> };
 }
 
 interface CalendarEvent {
@@ -14,11 +16,17 @@ interface CalendarEvent {
   date: string;
   time: string | null;
   allDay: boolean;
+  /** Kellaajalisel sündmusel lõpu ISO aeg, terve päeva sündmusel null. */
+  end: string | null;
+  isTask: boolean;
+  recurring: boolean;
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const TIMEZONE = "Europe/Tallinn";
+/** extendedProperties.private võti, millega dashboard märgib sündmuse taskiks. */
+const TASK_PROP = "dashboardTask";
 
 function missingEnv(): boolean {
   return (
@@ -90,7 +98,16 @@ export async function GET() {
             timeZone: "Europe/Tallinn",
           });
 
-      return { id: item.id, title: item.summary ?? "(Pealkirjata)", date, time, allDay };
+      return {
+        id: item.id,
+        title: item.summary ?? "(Pealkirjata)",
+        date,
+        time,
+        allDay,
+        end: allDay ? null : (item.end.dateTime ?? null),
+        isTask: item.extendedProperties?.private?.[TASK_PROP] === "1",
+        recurring: !!item.recurringEventId,
+      };
     });
 
     return NextResponse.json({ events });
@@ -108,6 +125,8 @@ interface NewEventBody {
   allDay?: boolean;
   start?: string;
   end?: string;
+  weekly?: boolean;
+  task?: boolean;
 }
 
 export async function POST(request: Request) {
@@ -155,7 +174,15 @@ export async function POST(request: Request) {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ summary: title, start, end }),
+      body: JSON.stringify({
+        summary: title,
+        start,
+        end,
+        // Nädalapäev tuleb algusekuupäevast; kordus on lõputu, lõpetamine käib Google Calendaris.
+        ...(body.weekly && { recurrence: ["RRULE:FREQ=WEEKLY"] }),
+        // Kordussündmuse instantsid pärivad extendedProperties'e, nii et märge jõuab igale korrale.
+        ...(body.task && { extendedProperties: { private: { [TASK_PROP]: "1" } } }),
+      }),
       cache: "no-store",
     });
 
