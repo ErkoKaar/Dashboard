@@ -164,7 +164,7 @@ function FinanceStats() {
     return <p className="text-sm text-destructive">Saldo laadimine ebaõnnestus.</p>;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
+    <div className="animate-unlock flex min-h-0 flex-1 flex-col gap-4">
       <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-accent/30 bg-background/60 p-4 text-center shadow-[0_0_16px_-4px_var(--accent)]">
         <div className="flex items-center justify-center gap-2">
           <Landmark className="h-4 w-4 text-accent-bright" aria-hidden />

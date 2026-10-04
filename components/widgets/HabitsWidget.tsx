@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { flushSync } from "react-dom";
+import type { AutoLayout } from "animejs";
 import { Check, ChevronDown, Repeat } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -18,14 +20,43 @@ export function HabitsWidget() {
   const { data, isLoading, error } = useTodayHabits();
   const toggleHabit = useToggleHabit();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const layoutRef = useRef<AutoLayout | null>(null);
+
+  // Laienev kaart muutub gridis täislaiuseks (col-span-full), mida CSS ei animeeri.
+  // anime.js layout salvestab kaartide asukohad enne muutust ja liigutab need uutesse kohtadesse.
+  // Moodul laetakse eraldi chunk'ina; kuni see pole kohal, laieneb kaart hetkega.
+  const gridRef = useCallback((node: HTMLDivElement | null) => {
+    layoutRef.current?.revert();
+    layoutRef.current = null;
+    if (!node) return;
+    import("animejs")
+      .then(({ createLayout, cubicBezier }) => {
+        if (!node.isConnected) return;
+        layoutRef.current = createLayout(node, {
+          children: ".habit-tile",
+          duration: 250,
+          ease: cubicBezier(0.77, 0, 0.175, 1),
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   function toggleExpand(id: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    const apply = () =>
+      setExpanded((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+
+    const layout = layoutRef.current;
+    if (!layout || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      apply();
+      return;
+    }
+    // flushSync: layout peab uue DOM-i nägema kohe, mitte järgmises renderis.
+    layout.update(() => flushSync(apply));
   }
 
   // Score counts top-level habits only: a parent counts as one, done when all
@@ -61,36 +92,38 @@ export function HabitsWidget() {
             </div>
           </div>
 
-          <GalleryGrid>
-            {data.map((habit) =>
-              habit.children.length > 0 ? (
-                <ParentHabitCard
-                  key={habit.id}
-                  habit={habit}
-                  expanded={expanded.has(habit.id)}
-                  onToggleExpand={() => toggleExpand(habit.id)}
-                  onToggleChild={(child) =>
-                    toggleHabit.mutate({ habitId: child.id, done: !child.done })
-                  }
-                />
-              ) : (
-                <GalleryCard key={habit.id} done={habit.done}>
-                  <CheckToggle
-                    checked={habit.done}
-                    onChange={() => toggleHabit.mutate({ habitId: habit.id, done: !habit.done })}
-                    aria-label={habit.done ? "Märgi tegemata" : "Märgi tehtud"}
+          <div ref={gridRef}>
+            <GalleryGrid>
+              {data.map((habit) =>
+                habit.children.length > 0 ? (
+                  <ParentHabitCard
+                    key={habit.id}
+                    habit={habit}
+                    expanded={expanded.has(habit.id)}
+                    onToggleExpand={() => toggleExpand(habit.id)}
+                    onToggleChild={(child) =>
+                      toggleHabit.mutate({ habitId: child.id, done: !child.done })
+                    }
                   />
-                  <span
-                    className={`line-clamp-2 text-sm ${
-                      habit.done ? "font-semibold text-foreground" : "text-foreground"
-                    }`}
-                  >
-                    {habit.name}
-                  </span>
-                </GalleryCard>
-              ),
-            )}
-          </GalleryGrid>
+                ) : (
+                  <GalleryCard key={habit.id} done={habit.done} className="habit-tile">
+                    <CheckToggle
+                      checked={habit.done}
+                      onChange={() => toggleHabit.mutate({ habitId: habit.id, done: !habit.done })}
+                      aria-label={habit.done ? "Märgi tegemata" : "Märgi tehtud"}
+                    />
+                    <span
+                      className={`line-clamp-2 text-sm ${
+                        habit.done ? "font-semibold text-foreground" : "text-foreground"
+                      }`}
+                    >
+                      {habit.name}
+                    </span>
+                  </GalleryCard>
+                ),
+              )}
+            </GalleryGrid>
+          </div>
         </>
       )}
 
@@ -110,7 +143,7 @@ function ParentHabitCard({ habit, expanded, onToggleExpand, onToggleChild }: Par
   const doneChildren = habit.children.filter((c) => c.done).length;
 
   return (
-    <GalleryCard done={habit.done} className={expanded ? "col-span-full" : ""}>
+    <GalleryCard done={habit.done} className={`habit-tile ${expanded ? "col-span-full" : ""}`}>
       <button
         type="button"
         onClick={onToggleExpand}

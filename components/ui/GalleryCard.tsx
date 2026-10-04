@@ -9,10 +9,10 @@ interface GalleryCardProps {
 export function GalleryCard({ done, children, className = "" }: GalleryCardProps) {
   return (
     <div
-      className={`relative flex min-h-[64px] flex-col justify-between gap-2 rounded-lg p-2.5 transition-all duration-300 ${
+      className={`tile-enter relative flex min-h-[64px] flex-col justify-between gap-2 rounded-xl p-2.5 ${
         done
-          ? "border-2 border-accent bg-accent/10 shadow-[0_0_12px_-1px_var(--accent),0_0_40px_-6px_var(--accent)]"
-          : "border border-border/50 bg-surface-hover/70 shadow-[0_0_20px_-5px_var(--accent)] hover:border-accent/40"
+          ? "border border-accent/70 bg-accent/15 shadow-[0_10px_28px_-14px_var(--accent)]"
+          : "border border-white/[0.07] bg-white/[0.04] hover:border-white/15 hover:bg-white/[0.07]"
       } ${className}`}
     >
       {children}

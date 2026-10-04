@@ -20,7 +20,7 @@ export function Input({ label, type, className = "", ...props }: InputProps) {
       <input
         id={id}
         type={type}
-        className="h-11 w-full rounded-lg border border-border bg-background px-3 text-base text-foreground placeholder:text-muted/60 transition-colors duration-200 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+        className="h-11 w-full rounded-lg border border-white/10 bg-background/50 px-3 text-base text-foreground placeholder:text-muted/60 transition-colors duration-200 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
         {...props}
       />
     </div>

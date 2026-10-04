@@ -106,7 +106,7 @@ export function RichTextEditor({ content, onChange, placeholder = "", className 
 
       <div
         onClick={() => editor?.commands.focus()}
-        className="rich-editor flex-1 cursor-text rounded-lg border border-border/50 bg-background px-4 py-3 text-base leading-relaxed text-foreground transition-colors duration-200 focus-within:border-accent"
+        className="rich-editor flex-1 cursor-text rounded-lg border border-white/10 bg-background/40 px-4 py-3 text-base leading-relaxed text-foreground transition-colors duration-200 focus-within:border-accent"
       >
         <EditorContent editor={editor} />
       </div>

@@ -3,12 +3,12 @@
 @tailwind utilities;
 
 :root {
-  --background: #070c0f;
-  --surface: #121d23;
-  --surface-hover: #182730;
-  --border: #241c14;
-  --foreground: #f2f6f7;
-  --muted: #a39a8e;
+  --background: #05090c;
+  --surface: #0f1b21;
+  --surface-hover: #182a32;
+  --border: #2a3b42;
+  --foreground: #eef3f2;
+  --muted: #a3b1b3;
   --accent: #10a1b4;
   --accent-bright: #2fc1d4;
   --positive: #34d399;
@@ -19,12 +19,12 @@
   /* RGB-triplet mirrors of the colors above, used only so Tailwind's
      opacity modifiers (eg. border-border/10) can compute a valid alpha
      channel — direct var(--x) usage elsewhere keeps using the hex ones. */
-  --background-rgb: 7 12 15;
-  --surface-rgb: 18 29 35;
-  --surface-hover-rgb: 24 39 48;
-  --border-rgb: 36 28 20;
-  --foreground-rgb: 242 246 247;
-  --muted-rgb: 163 154 142;
+  --background-rgb: 5 9 12;
+  --surface-rgb: 15 27 33;
+  --surface-hover-rgb: 24 42 50;
+  --border-rgb: 42 59 66;
+  --foreground-rgb: 238 243 242;
+  --muted-rgb: 163 177 179;
   --accent-rgb: 16 161 180;
   --accent-bright-rgb: 47 193 212;
   --positive-rgb: 52 211 153;
@@ -33,14 +33,89 @@
   --destructive-rgb: 248 113 113;
 }
 
+html {
+  color-scheme: dark;
+  scrollbar-color: rgb(255 255 255 / 0.18) transparent;
+}
+
 body {
   color: var(--foreground);
   background-color: var(--background);
-  background-image:
-    linear-gradient(to right, rgba(16, 161, 180, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(16, 161, 180, 0.05) 1px, transparent 1px);
-  background-size: 42px 42px;
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+::selection {
+  background-color: rgb(var(--accent-rgb) / 0.4);
+  color: var(--foreground);
+}
+
+@layer components {
+  /* Klaaspaneel: taevas paistab läbi, ülaserv püüab valgust. */
+  .glass {
+    background:
+      linear-gradient(
+        165deg,
+        rgb(255 255 255 / 0.08),
+        rgb(255 255 255 / 0.02) 38%,
+        transparent 62%
+      ),
+      rgb(6 13 17 / 0.52);
+    -webkit-backdrop-filter: blur(28px) saturate(150%);
+    backdrop-filter: blur(28px) saturate(150%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.14),
+      inset 0 0 0 1px rgb(255 255 255 / 0.06),
+      0 24px 48px -24px rgb(0 5 8 / 0.75);
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass {
+      background-color: rgb(10 18 23 / 0.9);
+    }
+  }
+
+  /* Klaaspill: hägu ja valgusserv pseudo-elementidel, et libisev tähis ja
+     nupud jääksid nende vahele. */
+  .liquid-glass {
+    position: relative;
+    box-shadow: 0 16px 32px -16px rgb(0 5 8 / 0.7);
+  }
+
+  .liquid-glass::before,
+  .liquid-glass::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  .liquid-glass::before {
+    background: rgb(6 13 17 / 0.35);
+    -webkit-backdrop-filter: blur(10px) saturate(170%);
+    backdrop-filter: blur(10px) saturate(170%);
+  }
+
+  .liquid-glass::after {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.2),
+      inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  }
+
+  .glass-glare {
+    opacity: 0;
+    transition: opacity 400ms ease;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .group:hover > .glass-glare {
+      opacity: 1;
+    }
+  }
+
+  .sky-vignette {
+    background: radial-gradient(120% 90% at 50% 35%, transparent 45%, rgb(0 0 0 / 0.55) 100%);
+  }
 }
 
 @layer utilities {
@@ -82,8 +157,8 @@ body {
 @keyframes reveal-blur {
   from {
     opacity: 0;
-    filter: blur(6px);
-    transform: translateY(4px);
+    filter: blur(14px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -92,29 +167,56 @@ body {
   }
 }
 
+/* Tiitri sissetulek: üks kord lehe laadimisel, taeva järel. */
 .animate-reveal {
-  animation: reveal-blur 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: reveal-blur 1000ms cubic-bezier(0.23, 1, 0.32, 1) 250ms both;
 }
 
-@keyframes scanline-sweep {
-  0% {
-    transform: translateX(-120%);
+@keyframes sky-in {
+  from {
     opacity: 0;
   }
-  15% {
+  to {
     opacity: 1;
-  }
-  85% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateX(120%);
-    opacity: 0;
   }
 }
 
-.animate-scanline {
-  animation: scanline-sweep 1100ms ease-in-out both;
+.animate-sky-in {
+  animation: sky-in 1400ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.animate-sky-canvas-in {
+  animation: sky-in 1800ms cubic-bezier(0.23, 1, 0.32, 1) 300ms both;
+}
+
+/* Lukust lahti: numbrid selginevad. */
+.animate-unlock {
+  animation: reveal-blur 300ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+/* Menüüd kasvavad oma nupu poolt (transform-origin annab suuna). */
+.pop-in {
+  transition:
+    opacity 150ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* GalleryCard: uus kaart ei teki järsult; värvimuutus jääb aeglasemaks. */
+.tile-enter {
+  transition:
+    background-color 300ms ease,
+    border-color 300ms ease,
+    box-shadow 300ms ease,
+    opacity 200ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@starting-style {
+  .pop-in,
+  .tile-enter {
+    opacity: 0;
+    transform: scale(0.97);
+  }
 }
 
 @keyframes celebrate-flash {

@@ -165,8 +165,8 @@ function ProjectPill({ item }: { item: TaskItem }) {
 
       {open && (
         <div
-          className={`absolute right-0 z-20 max-h-48 w-44 overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)] ${
-            openUp ? "bottom-[calc(100%+4px)]" : "top-[calc(100%+4px)]"
+          className={`pop-in absolute right-0 z-20 max-h-48 w-44 overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)] ${
+            openUp ? "bottom-[calc(100%+4px)] origin-bottom-right" : "top-[calc(100%+4px)] origin-top-right"
           }`}
         >
           {item.projectOptions.map((o) => (

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { Bricolage_Grotesque } from "next/font/google";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
+import { SkyBackdrop } from "@/components/ui/SkyBackdrop";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -13,6 +15,11 @@ const geistMono = localFont({
   src: "./fonts/GeistMonoVF.woff",
   variable: "--font-geist-mono",
   weight: "100 900",
+});
+const display = Bricolage_Grotesque({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-display",
+  axes: ["opsz", "wdth"],
 });
 
 export const metadata: Metadata = {
@@ -27,7 +34,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} ${display.variable} antialiased`}
+      >
+        <SkyBackdrop />
         <AuthProvider>
           <QueryProvider>{children}</QueryProvider>
         </AuthProvider>

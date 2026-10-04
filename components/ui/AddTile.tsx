@@ -22,7 +22,7 @@ export function AddTile({ placeholder, onAdd, disabled }: AddTileProps) {
 
   if (editing) {
     return (
-      <div className="flex min-h-[64px] flex-col justify-center gap-2 rounded-lg border border-accent/50 bg-surface-hover/40 p-2.5">
+      <div className="flex min-h-[64px] flex-col justify-center gap-2 rounded-xl border border-accent/50 bg-white/[0.04] p-2.5">
         <input
           autoFocus
           className="w-full bg-transparent text-sm text-foreground placeholder:text-muted/60 outline-none"
@@ -47,7 +47,7 @@ export function AddTile({ placeholder, onAdd, disabled }: AddTileProps) {
     <button
       type="button"
       onClick={() => setEditing(true)}
-      className="flex min-h-[64px] cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border/30 text-muted transition-colors duration-200 hover:border-accent/50 hover:text-accent"
+      className="flex min-h-[64px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-white/15 text-muted transition-colors duration-200 hover:border-accent/50 hover:text-accent"
       aria-label={placeholder}
     >
       <Plus className="h-4 w-4" aria-hidden />

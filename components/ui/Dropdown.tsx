@@ -34,7 +34,7 @@ export function Dropdown({ options, value, onChange, className = "" }: DropdownP
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground transition-colors duration-200 hover:border-accent/40 focus:border-accent focus:outline-none"
+        className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-white/10 bg-background/50 px-3 py-2 text-sm text-foreground transition-colors duration-200 hover:border-accent/40 focus:border-accent focus:outline-none"
       >
         <span className="truncate">{selected?.label ?? "—"}</span>
         <span className="flex shrink-0 items-center gap-2">
@@ -51,7 +51,7 @@ export function Dropdown({ options, value, onChange, className = "" }: DropdownP
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-10 max-h-48 overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)]">
+        <div className="pop-in absolute left-0 right-0 top-[calc(100%+4px)] z-10 max-h-48 origin-top overflow-y-auto rounded-lg border border-white/10 bg-surface/95 p-1 shadow-[0_12px_32px_-12px_rgb(0_5_8/0.8)] backdrop-blur-xl">
           {options.map((o) => (
             <button
               key={o.id}

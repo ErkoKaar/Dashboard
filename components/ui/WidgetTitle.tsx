@@ -15,7 +15,7 @@ export function WidgetTitle({ icon: Icon, children, href }: WidgetTitleProps) {
   );
 
   return (
-    <h2 className="flex items-center gap-2 font-mono text-xs font-semibold uppercase tracking-wider text-foreground">
+    <h2 className="flex items-center gap-2 text-sm font-medium text-foreground">
       {href ? (
         <a
           href={href}

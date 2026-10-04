@@ -13,7 +13,7 @@ export function TabButton({ active, onClick, children, className = "" }: TabButt
   return (
     <button
       onClick={onClick}
-      className={`relative cursor-pointer px-2 py-1 text-center font-mono text-[10px] uppercase tracking-wide transition-colors duration-200 ${
+      className={`relative cursor-pointer px-2 py-1 text-center text-xs font-medium transition-colors duration-200 ${
         active ? "text-foreground" : "text-muted hover:text-foreground"
       } ${className}`}
     >

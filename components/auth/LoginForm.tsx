@@ -27,7 +27,7 @@ export function LoginForm() {
 
   return (
     <main className="flex min-h-dvh items-center justify-center p-4">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-8">
+      <div className="glass animate-reveal w-full max-w-sm rounded-2xl p-8">
         <div className="mb-6 flex flex-col items-center">
           <Image
             src={logo}
@@ -37,7 +37,7 @@ export function LoginForm() {
             priority
             className="rounded-2xl"
           />
-          <h1 className="mt-4 text-xl font-semibold">Logi sisse</h1>
+          <h1 className="mt-5 font-display text-3xl font-semibold tracking-[-0.03em]">Logi sisse</h1>
           <p className="mt-1 text-sm text-muted">
             Sisesta oma kontode andmed
           </p>
