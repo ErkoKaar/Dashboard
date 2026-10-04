@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { ClubPlayer, ClubScheduleGame } from "@/lib/queries/useEstHoopClub";
+import { requireUser } from "@/lib/server/requireUser";
 
 // Klubide mängugraafik elab EstHoopi frontendi bundle'is (src/data/...), mitte
 // backendi API-s — loeme selle otse avalikust repost, et graafiku muudatused
@@ -118,7 +119,10 @@ function competitionLabel(name: string): string {
   return COMPETITION_SHORT[base] ?? base;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await requireUser(request);
+  if (auth instanceof Response) return auth;
+
   const baseUrl = process.env.NEXT_PUBLIC_ESTHOOP_API_URL;
   if (!baseUrl) {
     return NextResponse.json({ error: "NEXT_PUBLIC_ESTHOOP_API_URL puudub" }, { status: 500 });

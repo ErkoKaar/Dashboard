@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/apiFetch";
 
 /** Mängija nii palju, kui rea kuvamiseks vaja: nimi ja pildi slug. */
 export interface ClubPlayer {
@@ -52,7 +53,7 @@ export function useEstHoopClubSchedule() {
   return useQuery({
     queryKey: ["esthoop-club-schedule"],
     queryFn: async (): Promise<ClubScheduleGame[]> => {
-      const res = await fetch("/api/esthoop-club-schedule");
+      const res = await apiFetch("/api/esthoop-club-schedule");
       if (!res.ok) throw new Error("Klubigraafiku laadimine ebaõnnestus");
       const json = await res.json();
       return json.games;
@@ -64,7 +65,7 @@ export function useEstHoopClubResults() {
   return useQuery({
     queryKey: ["esthoop-club-results"],
     queryFn: async (): Promise<ClubResult[]> => {
-      const res = await fetch("/api/esthoop-club-results");
+      const res = await apiFetch("/api/esthoop-club-results");
       if (!res.ok) throw new Error("Klubitulemuste laadimine ebaõnnestus");
       const json = await res.json();
       return json.results;

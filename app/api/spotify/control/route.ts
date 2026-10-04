@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSpotifyAccessToken, hasSpotifyEnv } from "@/lib/spotify/token";
+import { requireUser } from "@/lib/server/requireUser";
 
 const ACTIONS: Record<string, { method: string; path: string }> = {
   play: { method: "PUT", path: "play" },
@@ -9,6 +10,9 @@ const ACTIONS: Record<string, { method: string; path: string }> = {
 };
 
 export async function POST(request: Request) {
+  const auth = await requireUser(request);
+  if (auth instanceof Response) return auth;
+
   if (!hasSpotifyEnv()) {
     return NextResponse.json({ error: "Spotify env muutujad puuduvad" }, { status: 500 });
   }

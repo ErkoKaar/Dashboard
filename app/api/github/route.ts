@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/server/requireUser";
 
 const QUERY = `
   query($monthFrom: DateTime!, $monthTo: DateTime!) {
@@ -131,7 +132,10 @@ function buildTodayCommitsByRepo(
   return Array.from(byRepo.entries()).map(([repo, count]) => ({ repo, count }));
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await requireUser(request);
+  if (auth instanceof Response) return auth;
+
   const token = process.env.GITHUB_TOKEN;
   if (!token) {
     return NextResponse.json({ error: "GITHUB_TOKEN puudub" }, { status: 500 });

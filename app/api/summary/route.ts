@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/lib/server/requireUser";
 
 const SYSTEM_PROMPT =
   "You are a personal dashboard assistant. Write a short (3-5 sentence), friendly, specific English summary of the user's day based on the JSON data provided. Don't use headings or bullet lists, write it as flowing prose.";
 
 export async function POST(request: Request) {
+  const auth = await requireUser(request);
+  if (auth instanceof Response) return auth;
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY puudub" }, { status: 500 });

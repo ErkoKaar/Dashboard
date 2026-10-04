@@ -22,6 +22,10 @@ const display = Bricolage_Grotesque({
   axes: ["opsz", "wdth"],
 });
 
+// CSP nonce (middleware.ts) on igal päringul uus — staatiliselt eelrenderdatud HTML-is seda poleks
+// ja brauser blokeeriks Next'i skriptid. Seepärast renderdatakse iga päringu peale.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Dashboard",
   description: "Personal dashboard aggregating Finance, Tasks, FocusLoop, EstHoop and GitHub data.",

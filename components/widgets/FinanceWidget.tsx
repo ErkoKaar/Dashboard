@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/Button";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import { SegmentedMeter } from "@/components/ui/SegmentedMeter";
 import { useFinanceBalance } from "@/lib/queries/useFinance";
+import { apiFetch } from "@/lib/apiFetch";
 
 // Parooli kontrollib /api/finance-pin route server-only FINANCE_WIDGET_PIN env'i
 // vastu — parool ei satu kliendi bundle'isse. Kui env puudub, lukku ei kuvata.
@@ -80,7 +81,7 @@ function MaskedTile({ icon: Icon, label, tone }: { icon: LucideIcon; label: stri
 
 function LockScreen({ onUnlock }: { onUnlock: () => void }) {
   const [value, setValue] = useState("");
-  const [wrong, setWrong] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
@@ -88,7 +89,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
     if (pending) return;
     setPending(true);
     try {
-      const res = await fetch("/api/finance-pin", {
+      const res = await apiFetch("/api/finance-pin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin: value }),
@@ -97,11 +98,12 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
       if (json.ok) {
         onUnlock();
       } else {
-        setWrong(true);
+        // 429: liiga palju katseid — server ütleb, kaua oodata.
+        setError(typeof json.error === "string" ? json.error : "Vale parool.");
         setValue("");
       }
     } catch {
-      setWrong(true);
+      setError("Kontroll ebaõnnestus. Proovi uuesti.");
     } finally {
       setPending(false);
     }
@@ -127,15 +129,18 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
             value={value}
             onChange={(e) => {
               setValue(e.target.value);
-              setWrong(false);
+              setError(null);
             }}
           />
           <Button type="submit" disabled={pending} className="shrink-0 px-3 py-2" aria-label="Ava">
             <Unlock className="h-4 w-4" aria-hidden />
           </Button>
         </form>
-        <p className={`mt-2 h-4 text-xs ${wrong ? "text-destructive" : "text-transparent"}`}>
-          Vale parool.
+        <p
+          className={`mt-2 min-h-4 text-xs ${error ? "text-destructive" : "text-transparent"}`}
+          role="alert"
+        >
+          {error ?? "Vale parool."}
         </p>
       </div>
 
@@ -211,7 +216,7 @@ export function FinanceWidget() {
   const { data: pinStatus } = useQuery({
     queryKey: ["finance-pin-status"],
     queryFn: async (): Promise<{ enabled: boolean }> => {
-      const res = await fetch("/api/finance-pin");
+      const res = await apiFetch("/api/finance-pin");
       if (!res.ok) throw new Error("PIN-oleku päring ebaõnnestus");
       return res.json();
     },

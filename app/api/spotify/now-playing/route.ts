@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSpotifyAccessToken, hasSpotifyEnv } from "@/lib/spotify/token";
+import { requireUser } from "@/lib/server/requireUser";
 
 interface SpotifyTrackItem {
   type: "track";
@@ -17,7 +18,10 @@ interface SpotifyEpisodeItem {
   duration_ms: number;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await requireUser(request);
+  if (auth instanceof Response) return auth;
+
   if (!hasSpotifyEnv()) {
     return NextResponse.json({ error: "Spotify env muutujad puuduvad" }, { status: 500 });
   }

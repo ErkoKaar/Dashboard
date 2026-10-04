@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentWeekDates, nextDate } from "@/lib/date";
+import { requireUser } from "@/lib/server/requireUser";
 
 interface GoogleEvent {
   id: string;
@@ -56,7 +57,10 @@ async function getAccessToken(): Promise<string> {
   return json.access_token as string;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await requireUser(request);
+  if (auth instanceof Response) return auth;
+
   if (missingEnv()) {
     return NextResponse.json({ error: "Google Calendar env muutujad puuduvad" }, { status: 500 });
   }
@@ -130,6 +134,9 @@ interface NewEventBody {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireUser(request);
+  if (auth instanceof Response) return auth;
+
   if (missingEnv()) {
     return NextResponse.json({ error: "Google Calendar env muutujad puuduvad" }, { status: 500 });
   }

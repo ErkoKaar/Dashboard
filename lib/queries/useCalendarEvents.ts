@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { TODAY_TASKS_KEY } from "@/lib/queries/useTodayTasks";
+import { apiFetch } from "@/lib/apiFetch";
 
 export interface CalendarEvent {
   id: string;
@@ -29,7 +30,7 @@ export const CALENDAR_EVENTS_KEY = ["calendar-events"];
 
 /** Jooksva nädala sündmused; kasutab ka useTodayTasks sama cache'i kaudu. */
 export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
-  const res = await fetch("/api/calendar");
+  const res = await apiFetch("/api/calendar");
   if (!res.ok) throw new Error("Kalendri laadimine ebaõnnestus");
   const json = await res.json();
   return json.events;
@@ -44,7 +45,7 @@ export function useAddCalendarEvent() {
 
   return useMutation({
     mutationFn: async (event: NewCalendarEvent) => {
-      const res = await fetch("/api/calendar", {
+      const res = await apiFetch("/api/calendar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(event),

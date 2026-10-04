@@ -7,6 +7,7 @@ import { useTodayFocusStats } from "@/lib/queries/useFocusStats";
 import { useWeather } from "@/lib/queries/useWeather";
 import { useChessTrend } from "@/lib/queries/useChess";
 import { useGithubContributions } from "@/lib/queries/useGithubContributions";
+import { apiFetch } from "@/lib/apiFetch";
 
 function todayDate() {
   return new Date().toISOString().slice(0, 10);
@@ -85,7 +86,7 @@ export function useDashboardSummary() {
           github: { commitsByRepo: github.data?.todayCommitsByRepo ?? [] },
         };
 
-        const res = await fetch("/api/summary", {
+        const res = await apiFetch("/api/summary", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),

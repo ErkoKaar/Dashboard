@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/apiFetch";
 
 export interface SpotifyNowPlaying {
   isPlaying: boolean;
@@ -35,7 +36,7 @@ export function useSpotifyNowPlaying() {
   return useQuery({
     queryKey: NOW_PLAYING_KEY,
     queryFn: async (): Promise<SpotifyNowPlaying> => {
-      const res = await fetch("/api/spotify/now-playing");
+      const res = await apiFetch("/api/spotify/now-playing");
       if (!res.ok) throw new Error("Spotify andmete laadimine ebaõnnestus");
       return res.json();
     },
@@ -47,7 +48,7 @@ export function useSpotifyTop() {
   return useQuery({
     queryKey: ["spotify-top"],
     queryFn: async (): Promise<SpotifyTop> => {
-      const res = await fetch("/api/spotify/top");
+      const res = await apiFetch("/api/spotify/top");
       if (!res.ok) throw new Error("Spotify andmete laadimine ebaõnnestus");
       return res.json();
     },
@@ -61,7 +62,7 @@ export function useSpotifyControl() {
 
   return useMutation({
     mutationFn: async (action: SpotifyControlAction) => {
-      const res = await fetch("/api/spotify/control", {
+      const res = await apiFetch("/api/spotify/control", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action }),

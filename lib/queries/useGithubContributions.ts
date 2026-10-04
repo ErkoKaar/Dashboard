@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/apiFetch";
 
 export interface GithubContributions {
   calendar: { date: string; count: number }[];
@@ -20,7 +21,7 @@ export function useGithubContributions() {
   return useQuery({
     queryKey: ["github-contributions"],
     queryFn: async (): Promise<GithubContributions> => {
-      const res = await fetch("/api/github");
+      const res = await apiFetch("/api/github");
       if (!res.ok) throw new Error("GitHub andmete laadimine ebaõnnestus");
       return res.json();
     },

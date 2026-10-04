@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { ClubResult } from "@/lib/queries/useEstHoopClub";
+import { requireUser } from "@/lib/server/requireUser";
 
 const LIMIT = 5;
 const REVALIDATE = 1800;
@@ -100,7 +101,10 @@ function toResults(player: EstHoopPlayer, stats: PlayerStats): ClubResult[] {
   return rows;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await requireUser(request);
+  if (auth instanceof Response) return auth;
+
   const baseUrl = process.env.NEXT_PUBLIC_ESTHOOP_API_URL;
   if (!baseUrl) {
     return NextResponse.json({ error: "NEXT_PUBLIC_ESTHOOP_API_URL puudub" }, { status: 500 });
