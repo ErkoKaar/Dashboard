@@ -48,6 +48,8 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "projects", label: "Projects" },
 ];
 
+const FILTERS_STORAGE_KEY = "taskmanager-filters";
+
 const CRITICALITY_CLASS: Record<Criticality, string> = {
   on_track: "bg-positive",
   warning: "bg-warning",
@@ -305,6 +307,50 @@ export function TaskManagerWidget() {
       return next;
     });
   }
+
+  // Salvestamine on lubatud alles pärast taastamist, muidu kirjutaks esimene render vaikeväärtused peale.
+  const [filtersRestored, setFiltersRestored] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FILTERS_STORAGE_KEY);
+      if (raw) {
+        const saved: unknown = JSON.parse(raw);
+        if (saved && typeof saved === "object") {
+          const { active: savedActive, hiddenProjects: savedHidden } = saved as Record<string, unknown>;
+          if (savedActive && typeof savedActive === "object") {
+            const record = savedActive as Record<string, unknown>;
+            setActive((prev) => {
+              const next = { ...prev };
+              for (const f of FILTERS) {
+                if (typeof record[f.key] === "boolean") next[f.key] = record[f.key] as boolean;
+              }
+              return next;
+            });
+          }
+          if (Array.isArray(savedHidden)) {
+            setHiddenProjects(new Set(savedHidden.filter((x): x is string => typeof x === "string")));
+          }
+        }
+      }
+    } catch {
+      // Vigane või kättesaamatu localStorage — alustame vaikeväärtustest.
+    }
+    setFiltersRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!filtersRestored) return;
+    try {
+      localStorage.setItem(
+        FILTERS_STORAGE_KEY,
+        JSON.stringify({ active, hiddenProjects: Array.from(hiddenProjects) }),
+      );
+    } catch {
+      // localStorage võib olla keelatud — siis lihtsalt ei jää meelde.
+    }
+  }, [filtersRestored, active, hiddenProjects]);
+
   const todayTasks = useTodayTasks(filterDate || undefined);
   const personalTasks = useAllProjectTasks("personal");
   const projectTasks = useAllProjectTasks("projects");
