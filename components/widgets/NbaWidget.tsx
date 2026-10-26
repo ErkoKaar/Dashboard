@@ -54,7 +54,7 @@ function PeriodSwitch({ period, onChange }: { period: NbaPeriod; onChange: (peri
 
 // Kolm vaadet: mängud (ajavahemik juhib mängude ja parimate soorituste kaarti), MVP race ja tabel
 // (mõlemad alati terve hooaeg). Vaate nimed on suured display-sõnad, ajavahemik nende all teise taseme pill.
-// Sama vidin teenib NBA-d ja EuroLeague'i: liiga määrab andmeallika ja efektiivsuse nime.
+// Sama vidin teenib NBA-d, EuroLeague'i ja Est-Lat liigat: liiga määrab andmeallika ja efektiivsuse nime.
 function BasketballWidget({ league }: { league: League }) {
   const [view, setView] = useState<View>("games");
   const [period, setPeriod] = useState<NbaPeriod>("today");
@@ -110,4 +110,8 @@ export function NbaWidget() {
 
 export function EuroLeagueWidget() {
   return <BasketballWidget league="euroleague" />;
+}
+
+export function EstLatWidget() {
+  return <BasketballWidget league="estlat" />;
 }

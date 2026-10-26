@@ -261,7 +261,7 @@ export function NbaMvpRace() {
       <div className="flex flex-col items-start gap-4">
         <div>
           <p className="text-sm text-foreground">MVP race&apos;i ei saanud laadida.</p>
-          <p className="mt-1 text-xs text-muted">ESPN-i liides võis muutuda või on ajutiselt maas.</p>
+          <p className="mt-1 text-xs text-muted">Andmeallika liides võis muutuda või on ajutiselt maas.</p>
         </div>
         <Button variant="ghost" onClick={() => refetch()} disabled={isFetching}>
           <RotateCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} aria-hidden />

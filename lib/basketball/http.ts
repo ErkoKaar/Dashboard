@@ -4,13 +4,13 @@ const RETRY_STATUSES = new Set([429, 503]);
 const MAX_RETRIES = 2;
 
 /**
- * JSON-päring; liiga paljude päringute (429) või ajutise rikke (503) korral kuni kaks kordust pausiga
+ * Liiga paljude päringute (429) või ajutise rikke (503) korral kuni kaks kordust pausiga
  * (Retry-After, kuid mitte üle 3 s). EuroLeague'i API piirab päringuid hooaja arvutuse ajal.
  */
-export async function fetchJson<T>(url: string, init: RequestInit): Promise<T> {
+async function request(url: string, init: RequestInit): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
     const res = await fetch(url, init);
-    if (res.ok) return (await res.json()) as T;
+    if (res.ok) return res;
     if (!RETRY_STATUSES.has(res.status) || attempt >= MAX_RETRIES) {
       throw new Error(`${new URL(url).host} vastas koodiga ${res.status}`);
     }
@@ -18,6 +18,15 @@ export async function fetchJson<T>(url: string, init: RequestInit): Promise<T> {
     const wait = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 3000) : 700 * (attempt + 1);
     await new Promise((resolve) => setTimeout(resolve, wait));
   }
+}
+
+export async function fetchJson<T>(url: string, init: RequestInit): Promise<T> {
+  return (await (await request(url, init)).json()) as T;
+}
+
+/** HTML-leht: Est-Lat liiga avalikku API-t ei paku. */
+export async function fetchText(url: string, init: RequestInit): Promise<string> {
+  return (await request(url, init)).text();
 }
 
 // Lingid lähevad otse href-i: ainult http(s), et vastusesse sattunud "javascript:" ei saaks käivituda.

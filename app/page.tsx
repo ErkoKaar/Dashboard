@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { FolderTree, ListChecks, LogOut, Medal, StickyNote, Trophy, User } from "lucide-react";
+import { Flag, FolderTree, ListChecks, LogOut, Medal, StickyNote, Trophy, User } from "lucide-react";
 import { ClockWidget } from "@/components/widgets/ClockWidget";
 import { WeatherWidget } from "@/components/widgets/WeatherWidget";
 import { LoginForm } from "@/components/auth/LoginForm";
@@ -23,6 +23,7 @@ const CONTEXTS: SideMenuItem<DashboardContext>[] = [
   { id: "delfi", label: "Delfi korvpall", icon: Basketball },
   { id: "nba", label: "NBA", icon: Trophy },
   { id: "euroleague", label: "EuroLeague", icon: Medal },
+  { id: "estlat", label: "Est-Lat Liiga", icon: Flag },
 ];
 
 // Sõnad ilmuvad hägust teravaks. splitText kirjutab h1 sisu ümber, seega kutsuja annab

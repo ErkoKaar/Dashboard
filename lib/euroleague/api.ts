@@ -1,12 +1,11 @@
 import { unstable_cache } from "next/cache";
 import { fetchJson } from "@/lib/basketball/http";
 import { buildLeaders } from "@/lib/basketball/leaders";
-import { periodDates } from "@/lib/basketball/period";
+import { groupGameDays } from "@/lib/basketball/period";
 import { attachRecaps, getChannelVideos, RecapVideo, withDurations } from "@/lib/basketball/youtube";
 import type {
   NbaBoxscore,
   NbaGame,
-  NbaGameDay,
   NbaGamesResponse,
   NbaGameState,
   NbaLeadersResponse,
@@ -411,28 +410,14 @@ export async function getGameDays(period: NbaPeriod): Promise<NbaGamesResponse> 
   const records = recordsOf(raw);
 
   const sources = new Map<string, ElGame>();
-  const byDay = new Map<string, NbaGame[]>();
+  const games: NbaGame[] = [];
   for (const source of raw) {
     const game = toGame(source, season, records, now);
     if (!game) continue;
     sources.set(game.id, source);
-    byDay.set(game.gameDay, [...(byDay.get(game.gameDay) ?? []), game]);
+    games.push(game);
   }
-
-  const dates =
-    period === "season"
-      ? [...new Set([today, ...[...byDay.keys()].filter((date) => date <= today)])].sort().reverse()
-      : periodDates(today, period);
-  const gamesOn = (date: string) =>
-    (byDay.get(date) ?? []).sort((a, b) => Date.parse(a.startTime) - Date.parse(b.startTime));
-  let days: NbaGameDay[] = dates
-    .map((date) => ({ date, games: gamesOn(date) }))
-    .filter((day) => day.date === today || day.games.length > 0);
-
-  if (period === "today" && days[0]?.games.length === 0) {
-    const next = [...byDay.keys()].filter((date) => date > today).sort()[0];
-    if (next) days.push({ date: next, games: gamesOn(next) });
-  }
+  let days = groupGameDays(games, today, period);
 
   const [magenta, euroleague] = await Promise.all([
     getChannelVideos(MAGENTA_CHANNEL_ID, today),

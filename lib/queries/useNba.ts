@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/apiFetch";
 // (lib/nba/espn.ts, lib/euroleague/api.ts) teisendavad oma andmed neisse.
 
 /** Liiga määrab API tee (/api/<liiga>/...) ja React Query võtme. */
-export type League = "nba" | "euroleague";
+export type League = "nba" | "euroleague" | "estlat";
 
 export type NbaPeriod = "today" | "3d" | "7d" | "30d" | "season";
 

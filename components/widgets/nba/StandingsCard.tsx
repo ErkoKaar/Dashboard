@@ -7,14 +7,14 @@ import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import { League, NbaStandingsGroup, NbaStandingsRow, useNbaStandings } from "@/lib/queries/useNba";
-import { useLeague } from "./league";
+import { LeagueConfig, useLeague } from "./league";
 import { TeamLogo } from "./media";
 
-// Põhiturniiri tabel. Mõlemas liigas pääsevad 1-6 otse play-off'i ja 7-10 play-in'i: täisjoon 6. ja
-// katkendjoon 10. koha järel, kohanumbri heledus kordab sama tsooni. NBA-l kaks konverentsi kõrvuti.
+// Põhiturniiri tabel. Tsoonid tulevad liigalt (NBA ja EuroLeague: 1-6 play-off, 7-10 play-in; Est-Lat:
+// 1-8 play-off): täisjoon play-off'i ja katkendjoon play-in'i piiril, kohanumbri heledus kordab sama
+// tsooni. NBA-l kaks konverentsi kõrvuti.
 
-const PLAYOFF_SPOTS = 6;
-const PLAY_IN_SPOTS = 10;
+type Zones = LeagueConfig["standingsZones"];
 
 function winPct({ wins, losses }: NbaStandingsRow): string {
   const games = wins + losses;
@@ -87,11 +87,19 @@ const COLUMNS: Record<League, Column[]> = {
     AWAY,
     { label: "Vorm", title: "Viimased 5 mängu, uusim paremal", value: (r) => <Form form={r.form} /> },
   ],
+  estlat: [
+    RECORD,
+    PCT,
+    { label: "+/-", title: "Punktide vahe", value: (r) => signed(r.pointDiff) },
+    HOME,
+    AWAY,
+    { label: "Vorm", title: "Viimased 5 mängu, uusim paremal", value: (r) => <Form form={r.form} /> },
+  ],
 };
 
-function zoneTone(position: number): string {
-  if (position <= PLAYOFF_SPOTS) return "text-foreground";
-  if (position <= PLAY_IN_SPOTS) return "text-foreground/65";
+function zoneTone(position: number, zones: Zones): string {
+  if (position <= zones.playoff) return "text-foreground";
+  if (zones.playIn !== null && position <= zones.playIn) return "text-foreground/65";
   return "text-muted/50";
 }
 
@@ -111,7 +119,7 @@ function ChangeMark({ change }: { change: NbaStandingsRow["change"] }) {
 const SURFACE = "bg-[rgb(10_18_23)]";
 const STICKY_CELL = `sticky left-0 z-[1] ${SURFACE}`;
 
-function StandingsTable({ group, league }: { group: NbaStandingsGroup; league: League }) {
+function StandingsTable({ group, league, zones }: { group: NbaStandingsGroup; league: League; zones: Zones }) {
   const columns = COLUMNS[league];
   const showChange = league === "euroleague";
 
@@ -144,9 +152,9 @@ function StandingsTable({ group, league }: { group: NbaStandingsGroup; league: L
               <tr
                 key={row.team.id}
                 className={`border-t ${
-                  i === PLAYOFF_SPOTS
+                  i === zones.playoff
                     ? "border-white/25"
-                    : i === PLAY_IN_SPOTS
+                    : i === zones.playIn
                       ? "border-dashed border-white/25"
                       : "border-white/[0.05]"
                 }`}
@@ -154,7 +162,7 @@ function StandingsTable({ group, league }: { group: NbaStandingsGroup; league: L
                 <th scope="row" className={`${STICKY_CELL} py-2 pl-3 pr-3 text-left font-normal`}>
                   <span className="flex items-center gap-2">
                     <span
-                      className={`w-5 shrink-0 text-right font-display text-[15px] font-semibold [font-stretch:85%] ${zoneTone(row.position)}`}
+                      className={`w-5 shrink-0 text-right font-display text-[15px] font-semibold [font-stretch:85%] ${zoneTone(row.position, zones)}`}
                     >
                       {row.position}
                     </span>
@@ -208,7 +216,7 @@ export function StandingsCard() {
       <>
         <div className={`grid items-start gap-6 ${data.groups.length > 1 ? "lg:grid-cols-2" : ""}`}>
           {data.groups.map((group) => (
-            <StandingsTable key={group.id} group={group} league={league.id} />
+            <StandingsTable key={group.id} group={group} league={league.id} zones={league.standingsZones} />
           ))}
         </div>
         <p className="mt-4 text-[11px] leading-relaxed text-muted/70">{league.standingsNote}</p>

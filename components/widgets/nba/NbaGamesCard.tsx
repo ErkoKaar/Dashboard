@@ -300,7 +300,7 @@ export function NbaGamesCard({ period }: { period: NbaPeriod }) {
       <div className="flex flex-1 flex-col items-start justify-center gap-4">
         <div>
           <p className="text-sm text-foreground">Mänge ei saanud laadida.</p>
-          <p className="mt-1 text-xs text-muted">ESPN-i liides võis muutuda või on ajutiselt maas.</p>
+          <p className="mt-1 text-xs text-muted">Andmeallika liides võis muutuda või on ajutiselt maas.</p>
         </div>
         <Button variant="ghost" onClick={() => refetch()} disabled={isFetching}>
           <RotateCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} aria-hidden />
