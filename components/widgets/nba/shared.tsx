@@ -2,7 +2,7 @@
 
 import { CSSProperties, useState } from "react";
 import { useCountUp } from "@/lib/useCountUp";
-import { espnImage } from "./media";
+import { resizedImage } from "./media";
 
 // Parimate soorituste ja MVP race'i ühised osad: tiimivärv, mängija väljalõige, avatar, statistikariba.
 
@@ -63,7 +63,7 @@ export function Cutout({ src, size }: { src: string; size: "lg" | "sm" }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={size === "lg" ? espnImage(src, 548, 400) : espnImage(src, 330, 241)}
+      src={size === "lg" ? resizedImage(src, 548, 400) : resizedImage(src, 330, 241)}
       alt=""
       loading="lazy"
       onError={() => setFailed(true)}
@@ -85,7 +85,7 @@ export function Avatar({ headshot, color }: { headshot: string | null; color: st
       {photo && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={espnImage(photo, 96, 96)}
+          src={resizedImage(photo, 96, 96)}
           alt=""
           loading="lazy"
           onError={() => setFailed(true)}

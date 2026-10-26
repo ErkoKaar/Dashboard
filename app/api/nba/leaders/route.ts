@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getLeaders, parsePeriod } from "@/lib/nba/espn";
+import { parsePeriod } from "@/lib/basketball/period";
+import { getLeaders } from "@/lib/nba/espn";
 import { requireUser } from "@/lib/server/requireUser";
 
 export const dynamic = "force-dynamic";

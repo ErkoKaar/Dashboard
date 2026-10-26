@@ -4,6 +4,7 @@ import { RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { NbaGame, NbaPlayerLine, NbaTeamBox, useNbaBoxscore } from "@/lib/queries/useNba";
+import { useLeague } from "./league";
 import { TeamLogo } from "./media";
 
 type StatLine = Omit<NbaPlayerLine, "id" | "name" | "shortName" | "position" | "headshot" | "starter" | "didNotPlay">;
@@ -46,6 +47,7 @@ function teamTotals(players: NbaPlayerLine[]): StatLine {
     ftm: sum((p) => p.ftm),
     fta: sum((p) => p.fta),
     plusMinus: null,
+    eff: sum((p) => p.eff),
   };
 }
 
@@ -128,7 +130,8 @@ function TeamTable({ team }: { team: NbaTeamBox }) {
 }
 
 export function NbaBoxscore({ game }: { game: NbaGame }) {
-  const { data, isPending, isFetching, refetch } = useNbaBoxscore(game.id, game.completed);
+  const league = useLeague();
+  const { data, isPending, isFetching, refetch } = useNbaBoxscore(game.id, game.completed, league.id);
 
   if (data) {
     if (data.teams.length === 0) {

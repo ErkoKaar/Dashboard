@@ -11,6 +11,7 @@ import { recapClip } from "@/lib/nba/clip";
 import { NbaGame, NbaPeriod, NbaRecapClip, NbaTeamSide, useNbaGames } from "@/lib/queries/useNba";
 import { NbaBoxscore } from "./NbaBoxscore";
 import { useRecapPlayer } from "./RecapPlayer";
+import { useLeague } from "./league";
 import { TeamLogo } from "./media";
 
 const TALLINN = "Europe/Tallinn";
@@ -43,8 +44,11 @@ function statusText(game: NbaGame): string {
       return "Peatatud";
     case "STATUS_DELAYED":
       return "Hilineb";
+    case "STATUS_RESULT_PENDING":
+      return "Ootab tulemust";
   }
-  if (game.state === "in") return `${periodLabel(game.period)} ${game.clock}`;
+  // EuroLeague'i mängukava ei anna veerandit ega kella: siis ainult "Käimas".
+  if (game.state === "in") return game.period ? `${periodLabel(game.period)} ${game.clock}` : "Käimas";
   if (game.state === "post") return game.period > 4 ? `Lõpp (${periodLabel(game.period)})` : "Lõpp";
   if (!game.timeKnown) return "Aeg selgub";
   return new Date(game.startTime).toLocaleTimeString("et-EE", { hour: "2-digit", minute: "2-digit", timeZone: TALLINN });
@@ -247,7 +251,8 @@ function GamesSkeleton() {
 }
 
 export function NbaGamesCard({ period }: { period: NbaPeriod }) {
-  const { data, isPending, isFetching, isPlaceholderData, refetch } = useNbaGames(period);
+  const league = useLeague();
+  const { data, isPending, isFetching, isPlaceholderData, refetch } = useNbaGames(period, league.id);
   const [openGameId, setOpenGameId] = useState<string | null>(null);
   const gameCount = data?.days.reduce((count, day) => count + day.games.length, 0) ?? 0;
 
@@ -269,7 +274,7 @@ export function NbaGamesCard({ period }: { period: NbaPeriod }) {
                 {dayLabel(day.date, data.today)}
               </h3>
               {day.games.length === 0 ? (
-                <p className="pb-4 pt-2 text-sm text-muted">Sel päeval NBA mänge pole.</p>
+                <p className="pb-4 pt-2 text-sm text-muted">Sel päeval mänge pole.</p>
               ) : (
                 <ul className="mb-3">
                   {day.games.map((game) => (
@@ -285,7 +290,7 @@ export function NbaGamesCard({ period }: { period: NbaPeriod }) {
             </section>
           ))}
         </div>
-        <p className="mt-3 text-[11px] text-muted/70">Mängupäevad USA aja järgi, kellaajad Eesti aja järgi.</p>
+        <p className="mt-3 text-[11px] text-muted/70">{league.dayNote}</p>
       </>
     );
   } else if (isPending) {

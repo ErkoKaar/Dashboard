@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import { NbaMvpEntry, useNbaMvpRace } from "@/lib/queries/useNba";
+import { LeagueConfig, useLeague } from "./league";
 import { Avatar, cardBackground, CountUpNumber, Cutout, StatCell, StatGrid, teamToneCss } from "./shared";
 
 // MVP race: hooaja 10 parimat EFF järgi. Iga mängija on vaikne rida, mille all joon näitab EFF-i
@@ -16,7 +17,7 @@ import { Avatar, cardBackground, CountUpNumber, Cutout, StatCell, StatGrid, team
 const avg = (value: number) => value.toFixed(1);
 const percent = (value: number | null) => (value === null ? "-" : `${value}%`);
 
-function cells(entry: NbaMvpEntry): StatCell[] {
+function cells(entry: NbaMvpEntry, league: LeagueConfig): StatCell[] {
   return [
     { label: "M", title: "Mänge", value: String(entry.games) },
     { label: "MIN", title: "Minutid mängus", value: avg(entry.min) },
@@ -28,7 +29,7 @@ function cells(entry: NbaMvpEntry): StatCell[] {
     { label: "FG%", title: "Väljakuvisete tabavus", value: percent(entry.fgPct) },
     { label: "3P%", title: "Kolmeste tabavus", value: percent(entry.tpPct) },
     { label: "FT%", title: "Vabavisete tabavus", value: percent(entry.ftPct) },
-    { label: "EFF", title: "Efektiivsus mängus (järjestuse alus)", value: avg(entry.eff), active: true },
+    { label: league.effLabel, title: `${league.effTitle} mängus (järjestuse alus)`, value: avg(entry.eff), active: true },
   ];
 }
 
@@ -57,6 +58,7 @@ function PlayerCard({
   closeRef: RefObject<HTMLButtonElement | null>;
   onClose: () => void;
 }) {
+  const league = useLeague();
   const { player, team } = entry;
   const teamRecord = record(entry);
   return (
@@ -90,7 +92,7 @@ function PlayerCard({
           <p className="font-display text-[5.5rem] font-bold leading-[0.82] tracking-[-0.02em] tabular-nums [font-stretch:75%] sm:text-[6.5rem]">
             {countUp ? <CountUpNumber value={entry.eff} decimals={1} /> : avg(entry.eff)}
           </p>
-          <p className="mt-1.5 text-[11px] font-semibold text-white/75">EFF mängu kohta</p>
+          <p className="mt-1.5 text-[11px] font-semibold text-white/75">{league.effLabel} mängu kohta</p>
         </div>
 
         <div className="relative mt-6 max-w-[60%] drop-shadow-[0_1px_8px_rgb(0_0_0/0.35)]">
@@ -105,7 +107,7 @@ function PlayerCard({
         </div>
       </div>
       <div className="relative bg-[rgb(5_9_12/0.88)] p-3 sm:p-4">
-        <StatGrid columns={STRIP_COLUMNS} cells={cells(entry)} />
+        <StatGrid columns={STRIP_COLUMNS} cells={cells(entry, league)} />
       </div>
     </article>
   );
@@ -126,6 +128,7 @@ function RaceRow({
   countUp: boolean;
   onToggle: () => void;
 }) {
+  const league = useLeague();
   const { player, team } = entry;
   const teamRecord = record(entry);
   // Negatiivne või null EFF on hooaja alguses võimalik: joon jääb siis olemata.
@@ -192,7 +195,7 @@ function RaceRow({
         <ChevronDown className="h-4 w-4 shrink-0 text-muted" aria-hidden />
       </button>
       <div className="min-w-0 flex-1">
-        <StatGrid columns={STRIP_COLUMNS} cells={cells(entry)} />
+        <StatGrid columns={STRIP_COLUMNS} cells={cells(entry, league)} />
       </div>
       <span
         className="absolute bottom-0 left-2 h-0.5 rounded-full opacity-80"
@@ -219,7 +222,8 @@ function MvpSkeleton() {
 }
 
 export function NbaMvpRace() {
-  const { data, isPending, isFetching, refetch } = useNbaMvpRace();
+  const league = useLeague();
+  const { data, isPending, isFetching, refetch } = useNbaMvpRace(league.id);
   // undefined = kasutaja pole veel klõpsanud: lahti on liider ja tema EFF loeb end üles.
   // null = kõik kaardid kinni.
   const [openId, setOpenId] = useState<string | null | undefined>(undefined);
@@ -244,8 +248,7 @@ export function NbaMvpRace() {
           ))}
         </ol>
         <p className="mt-4 text-[11px] leading-relaxed text-muted/70">
-          Järjestus hooaja EFF järgi mängu kohta, ESPN-i kvalifitseerunud mängijad. Joon näitab EFF-i liidriga
-          võrreldes. Ametlik NBA MVP edetabel on toimetuse hinnang ja võib sellest erineda.
+          {league.mvpNote}
         </p>
       </>
     );

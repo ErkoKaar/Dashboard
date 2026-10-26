@@ -9,19 +9,18 @@ import { TabButton } from "@/components/ui/TabButton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import { NbaLeaderMetric, NbaPerformance, NbaPeriod, NbaStatLine, useNbaLeaders } from "@/lib/queries/useNba";
 import { useRecapPlayer } from "./RecapPlayer";
+import { LeagueConfig, useLeague } from "./league";
 import { Avatar, cardBackground, CountUpNumber, Cutout, StatGrid } from "./shared";
 
 // esthoop.ee "Parimad sooritused" eeskujul: nr 1 on kangelaskaart, 2-3 tiimivärvi kaardid,
 // 4-10 read. Igal real täis statistikariba; kõik numbrid on ühe mängu täisarvud.
 
-const METRICS: { key: NbaLeaderMetric; label: string }[] = [
-  { key: "eff", label: "EFF" },
-  { key: "pts", label: "PTS" },
-  { key: "reb", label: "REB" },
-  { key: "ast", label: "AST" },
-];
+const METRICS: NbaLeaderMetric[] = ["eff", "pts", "reb", "ast"];
 
-const METRIC_LABEL: Record<NbaLeaderMetric, string> = { eff: "EFF", pts: "PTS", reb: "REB", ast: "AST" };
+// Efektiivsuse nimi sõltub liigast (NBA: EFF, EuroLeague: PIR).
+function metricLabel(metric: NbaLeaderMetric, league: LeagueConfig): string {
+  return metric === "eff" ? league.effLabel : metric.toUpperCase();
+}
 
 function signed(value: number | null): string {
   if (value === null) return "-";
@@ -92,12 +91,13 @@ function GameResult({ performance, className = "" }: { performance: NbaPerforman
 // Telefonis 7 + 6 lahtrit kahel real (horisontaalset kerimist pole); 13 ühel real ainult siis,
 // kui kaart on lai: md (kogu laius) ja 2xl (veerg on üle 560 px).
 function StatStrip({ stats, metric }: { stats: NbaStatLine; metric: NbaLeaderMetric }) {
+  const league = useLeague();
   return (
     <StatGrid
       columns="grid-cols-7 md:grid-cols-[repeat(13,minmax(0,1fr))] lg:grid-cols-7 2xl:grid-cols-[repeat(13,minmax(0,1fr))]"
       cells={STRIP.map((cell) => ({
-        label: cell.label,
-        title: cell.title,
+        label: cell.metric === "eff" ? league.effLabel : cell.label,
+        title: cell.metric === "eff" ? league.effTitle : cell.title,
         value: cell.value(stats),
         active: cell.metric === metric,
       }))}
@@ -118,6 +118,7 @@ function PodiumCard({
   featured: boolean;
   delay: number;
 }) {
+  const league = useLeague();
   const { player, team, stats } = performance;
 
   return (
@@ -146,7 +147,7 @@ function PodiumCard({
           >
             {featured ? <CountUpNumber value={stats[metric]} /> : stats[metric]}
           </p>
-          <p className="mt-1.5 text-[11px] font-semibold text-white/75">{METRIC_LABEL[metric]}</p>
+          <p className="mt-1.5 text-[11px] font-semibold text-white/75">{metricLabel(metric, league)}</p>
         </div>
 
         <div className={`relative drop-shadow-[0_1px_8px_rgb(0_0_0/0.35)] ${featured ? "mt-6 max-w-[62%]" : "mt-3 max-w-[60%]"}`}>
@@ -214,7 +215,7 @@ function TopSkeleton({ slow }: { slow: boolean }) {
       </div>
       {slow && (
         <p className="text-xs text-muted">
-          Kuu statistika esmakordne kokkuarvutus võtab kuni pool minutit, edaspidi tuleb see vahemälust.
+          Pika vahemiku esmakordne kokkuarvutus võtab kuni minuti, edaspidi tuleb see vahemälust.
         </p>
       )}
     </div>
@@ -222,7 +223,8 @@ function TopSkeleton({ slow }: { slow: boolean }) {
 }
 
 export function NbaLeadersCard({ period }: { period: NbaPeriod }) {
-  const { data, isPending, isFetching, isPlaceholderData, refetch } = useNbaLeaders(period);
+  const league = useLeague();
+  const { data, isPending, isFetching, isPlaceholderData, refetch } = useNbaLeaders(period, league.id);
   const [metric, setMetric] = useState<NbaLeaderMetric>("eff");
   const top = data?.top[metric] ?? [];
 
@@ -262,20 +264,20 @@ export function NbaLeadersCard({ period }: { period: NbaPeriod }) {
         )}
         <p className="mt-3 text-[11px] leading-relaxed text-muted/70">
           Igalt mängijalt tema parim mäng selles vahemikus. Arvestatud {data.gamesCounted}/{data.gamesTotal} lõppenud
-          mängu, eelhooaja ja tähtede mänge mitte.
+          mängu{league.leadersNote ? `, ${league.leadersNote}` : "."}
         </p>
       </div>
     );
   } else if (data) {
     body = <p className="text-sm text-muted">Selles vahemikus pole veel ühtki mängu lõppenud.</p>;
   } else if (isPending) {
-    body = <TopSkeleton slow={period === "30d"} />;
+    body = <TopSkeleton slow={period === "30d" || period === "season"} />;
   } else {
     body = (
       <div className="flex flex-col items-start gap-4">
         <div>
           <p className="text-sm text-foreground">Statistikat ei saanud laadida.</p>
-          <p className="mt-1 text-xs text-muted">ESPN-i liides võis muutuda või on ajutiselt maas.</p>
+          <p className="mt-1 text-xs text-muted">Andmeallika liides võis muutuda või on ajutiselt maas.</p>
         </div>
         <Button variant="ghost" onClick={() => refetch()} disabled={isFetching}>
           <RotateCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} aria-hidden />
@@ -290,9 +292,9 @@ export function NbaLeadersCard({ period }: { period: NbaPeriod }) {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <WidgetTitle icon={Trophy}>Parimad sooritused</WidgetTitle>
         <div role="group" aria-label="Järjesta" className="-mr-2 flex">
-          {METRICS.map(({ key, label }) => (
+          {METRICS.map((key) => (
             <TabButton key={key} active={metric === key} onClick={() => setMetric(key)}>
-              {label}
+              {metricLabel(key, league)}
             </TabButton>
           ))}
         </div>

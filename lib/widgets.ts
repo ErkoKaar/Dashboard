@@ -9,9 +9,9 @@ import { QuickNotesWidget } from "@/components/widgets/QuickNotesWidget";
 import { TaskManagerWidget } from "@/components/widgets/TaskManagerWidget";
 import { FileSystemWidget } from "@/components/widgets/FileSystemWidget";
 import { DelfiBasketballWidget } from "@/components/widgets/DelfiBasketballWidget";
-import { NbaWidget } from "@/components/widgets/NbaWidget";
+import { EuroLeagueWidget, NbaWidget } from "@/components/widgets/NbaWidget";
 
-export type DashboardContext = "personal" | "taskmanager" | "notes" | "files" | "delfi" | "nba";
+export type DashboardContext = "personal" | "taskmanager" | "notes" | "files" | "delfi" | "nba" | "euroleague";
 
 export interface WidgetDefinition {
   id: string;
@@ -36,4 +36,5 @@ export const WIDGET_REGISTRY: WidgetDefinition[] = [
   { id: "file-system", Component: FileSystemWidget, colSpan: FULL, context: "files" },
   { id: "delfi-basketball", Component: DelfiBasketballWidget, colSpan: FULL, context: "delfi" },
   { id: "nba", Component: NbaWidget, colSpan: FULL, context: "nba" },
+  { id: "euroleague", Component: EuroLeagueWidget, colSpan: FULL, context: "euroleague" },
 ];

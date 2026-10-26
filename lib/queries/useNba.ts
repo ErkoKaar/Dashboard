@@ -1,7 +1,13 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/apiFetch";
 
-export type NbaPeriod = "today" | "3d" | "7d" | "30d";
+// NBA ja EuroLeague kasutavad samu tüüpe (Nba-eesliide on ajalooline): serveri adapterid
+// (lib/nba/espn.ts, lib/euroleague/api.ts) teisendavad oma andmed neisse.
+
+/** Liiga määrab API tee (/api/<liiga>/...) ja React Query võtme. */
+export type League = "nba" | "euroleague";
+
+export type NbaPeriod = "today" | "3d" | "7d" | "30d" | "season";
 
 export type NbaGameState = "pre" | "in" | "post";
 
@@ -91,6 +97,8 @@ export interface NbaPlayerLine {
   ftm: number;
   fta: number;
   plusMinus: number | null;
+  /** Liiga efektiivsus: NBA-s EFF (arvutatud), EuroLeague'is ametlik PIR. */
+  eff: number;
 }
 
 export interface NbaTeamBox {
@@ -197,16 +205,16 @@ export interface NbaMvpResponse {
   players: NbaMvpEntry[];
 }
 
-// Kõik käivad läbi app/api/nba/*: server kärbib ESPN-i ~500 KB vastused ja hoiab
-// lõppenud mängud vahemälus. keepPreviousData: ajavahemiku vahetusel jäävad vanad andmed
-// tuhmilt näha, kuni uued jõuavad.
+// Kõik käivad läbi app/api/<liiga>/*: server kärbib vastused ja hoiab lõppenud mängud
+// vahemälus. keepPreviousData: ajavahemiku vahetusel jäävad vanad andmed tuhmilt näha,
+// kuni uued jõuavad.
 
-export function useNbaGames(period: NbaPeriod) {
+export function useNbaGames(period: NbaPeriod, league: League) {
   return useQuery({
-    queryKey: ["nba-games", period],
+    queryKey: [league, "games", period],
     queryFn: async ({ signal }): Promise<NbaGamesResponse> => {
-      const res = await apiFetch(`/api/nba/games?period=${period}`, { signal });
-      if (!res.ok) throw new Error("NBA mängude laadimine ebaõnnestus");
+      const res = await apiFetch(`/api/${league}/games?period=${period}`, { signal });
+      if (!res.ok) throw new Error("Mängude laadimine ebaõnnestus");
       return res.json();
     },
     placeholderData: keepPreviousData,
@@ -219,14 +227,14 @@ export function useNbaGames(period: NbaPeriod) {
   });
 }
 
-export function useNbaBoxscore(gameId: string, completed: boolean) {
+export function useNbaBoxscore(gameId: string, completed: boolean, league: League) {
   return useQuery({
     // completed võtmes: mängu lõppedes tuuakse lõplik (serveris vahemällu jääv) versioon.
-    queryKey: ["nba-boxscore", gameId, completed],
+    queryKey: [league, "boxscore", gameId, completed],
     queryFn: async ({ signal }): Promise<NbaBoxscore> => {
       const query = new URLSearchParams({ id: gameId });
       if (completed) query.set("final", "1");
-      const res = await apiFetch(`/api/nba/boxscore?${query}`, { signal });
+      const res = await apiFetch(`/api/${league}/boxscore?${query}`, { signal });
       if (!res.ok) throw new Error("Boxscore'i laadimine ebaõnnestus");
       return res.json();
     },
@@ -235,12 +243,12 @@ export function useNbaBoxscore(gameId: string, completed: boolean) {
   });
 }
 
-export function useNbaLeaders(period: NbaPeriod) {
+export function useNbaLeaders(period: NbaPeriod, league: League) {
   return useQuery({
-    queryKey: ["nba-leaders", period],
+    queryKey: [league, "leaders", period],
     queryFn: async ({ signal }): Promise<NbaLeadersResponse> => {
-      const res = await apiFetch(`/api/nba/leaders?period=${period}`, { signal });
-      if (!res.ok) throw new Error("NBA statistika laadimine ebaõnnestus");
+      const res = await apiFetch(`/api/${league}/leaders?period=${period}`, { signal });
+      if (!res.ok) throw new Error("Statistika laadimine ebaõnnestus");
       return res.json();
     },
     placeholderData: keepPreviousData,
@@ -249,11 +257,11 @@ export function useNbaLeaders(period: NbaPeriod) {
   });
 }
 
-export function useNbaMvpRace() {
+export function useNbaMvpRace(league: League) {
   return useQuery({
-    queryKey: ["nba-mvp"],
+    queryKey: [league, "mvp"],
     queryFn: async ({ signal }): Promise<NbaMvpResponse> => {
-      const res = await apiFetch("/api/nba/mvp", { signal });
+      const res = await apiFetch(`/api/${league}/mvp`, { signal });
       if (!res.ok) throw new Error("MVP race'i laadimine ebaõnnestus");
       return res.json();
     },
