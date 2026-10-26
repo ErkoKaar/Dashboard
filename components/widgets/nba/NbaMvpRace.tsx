@@ -1,14 +1,15 @@
 "use client";
 
 import { ReactNode, RefObject, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, Crown, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
-import { NbaMvpEntry, useNbaMvpRace } from "@/lib/queries/useNba";
+import { mvpRaceQuery, NbaMvpEntry, useNbaMvpRace } from "@/lib/queries/useNba";
 import { LeagueConfig, useLeague } from "./league";
-import { Avatar, cardBackground, CountUpNumber, Cutout, StatCell, StatGrid, teamToneCss } from "./shared";
+import { Avatar, cardBackground, CountUpNumber, Cutout, preloadCutout, StatCell, StatGrid, teamToneCss } from "./shared";
 
 // MVP race: hooaja 10 parimat EFF järgi. Iga mängija on vaikne rida, mille all joon näitab EFF-i
 // liidriga võrreldes (ilma taustarajata: joon ise on võidujooks). Klõps avab rea asemel tiimivärvi
@@ -219,6 +220,32 @@ function MvpSkeleton() {
       ))}
     </div>
   );
+}
+
+// Eellaadimine ootab, kuni avatud vaate päringud ja pildid on teel, et neid mitte aeglustada.
+const PREFETCH_DELAY_MS = 1500;
+
+/**
+ * Liiga avamisel laeb MVP race'i andmed ja liidri foto taustal ette, et vaate vahetus oleks kohe valmis
+ * (Est-Lat liigas arvutatakse hooaja keskmised esimesel korral kõigist boxscore'idest, ~10 s).
+ */
+export function PrefetchMvpRace() {
+  const league = useLeague();
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      queryClient
+        .fetchQuery(mvpRaceQuery(league.id))
+        .then((data) => {
+          const leader = data.players[0]?.player.headshot;
+          if (leader) preloadCutout(leader, league.whitePhotoBackground);
+        })
+        // Viga ei loe: vaade proovib avamisel uuesti ja näitab siis veateadet.
+        .catch(() => undefined);
+    }, PREFETCH_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [queryClient, league]);
+  return null;
 }
 
 export function NbaMvpRace() {

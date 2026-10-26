@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/apiFetch";
 
 // NBA ja EuroLeague kasutavad samu tüüpe (Nba-eesliide on ajalooline): serveri adapterid
@@ -294,8 +294,9 @@ export function useNbaLeaders(period: NbaPeriod, league: League) {
   });
 }
 
-export function useNbaMvpRace(league: League) {
-  return useQuery({
+/** Sama päring vaates ja taustal eellaadimisel (NbaMvpRace.tsx PrefetchMvpRace): üks vahemälu kirje. */
+export function mvpRaceQuery(league: League) {
+  return queryOptions({
     queryKey: [league, "mvp"],
     queryFn: async ({ signal }): Promise<NbaMvpResponse> => {
       const res = await apiFetch(`/api/${league}/mvp`, { signal });
@@ -305,6 +306,10 @@ export function useNbaMvpRace(league: League) {
     // Hooaja keskmised muutuvad ainult mängude lõppedes; server hoiab neid tund aega.
     staleTime: 30 * 60 * 1000,
   });
+}
+
+export function useNbaMvpRace(league: League) {
+  return useQuery(mvpRaceQuery(league));
 }
 
 export function useNbaStandings(league: League) {

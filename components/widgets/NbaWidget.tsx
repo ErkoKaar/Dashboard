@@ -4,7 +4,7 @@ import { useState } from "react";
 import { League, NbaPeriod } from "@/lib/queries/useNba";
 import { NbaGamesCard } from "./nba/NbaGamesCard";
 import { NbaLeadersCard } from "./nba/NbaLeadersCard";
-import { NbaMvpRace } from "./nba/NbaMvpRace";
+import { NbaMvpRace, PrefetchMvpRace } from "./nba/NbaMvpRace";
 import { RecapPlayerProvider } from "./nba/RecapPlayer";
 import { StandingsCard } from "./nba/StandingsCard";
 import { LeagueProvider } from "./nba/league";
@@ -62,6 +62,7 @@ function BasketballWidget({ league }: { league: League }) {
   return (
     <LeagueProvider league={league}>
       <RecapPlayerProvider>
+        {view !== "mvp" && <PrefetchMvpRace />}
         <div className="flex flex-col gap-5">
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
             <div role="group" aria-label="Vaade" className="flex items-baseline gap-5 sm:gap-7">

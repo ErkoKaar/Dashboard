@@ -20,7 +20,8 @@ const NEXT_IMAGE_WIDTHS = [16, 32, 48, 64, 96, 128, 256, 384, 640, 750, 828, 108
 export function resizedImage(url: string, width: number, height: number): string {
   if (url.startsWith(ESPN_CDN)) {
     const path = url.slice(ESPN_CDN.length - 1);
-    return `${ESPN_CDN}combiner/i?img=${encodeURIComponent(path)}&w=${width}&h=${height}&scale=crop`;
+    // Combiner annab PNG-i (548x400 ~220 KB); optimeerija teeb sellest WebP-i (~30 KB).
+    return optimizedImage(`${ESPN_CDN}combiner/i?img=${encodeURIComponent(path)}&w=${width}&h=${height}&scale=crop`, width);
   }
   // Ruut: portree on ruudukujuline ja lõikamine ristkülikuks võtaks pea maha.
   const estlat = url.match(ESTLAT_IMAGE);
@@ -34,9 +35,13 @@ export function resizedImage(url: string, width: number, height: number): string
   } catch {
     return url;
   }
-  if (!OPTIMIZED_HOSTS.has(host)) return url;
+  return OPTIMIZED_HOSTS.has(host) ? optimizedImage(url, width) : url;
+}
+
+/** Pilt Next'i pildioptimeerija kaudu: oma päritolu, seega saab seda ka lõuendil töödelda. */
+export function optimizedImage(url: string, width: number, quality = 75): string {
   const allowed = NEXT_IMAGE_WIDTHS.find((w) => w >= width) ?? NEXT_IMAGE_WIDTHS[NEXT_IMAGE_WIDTHS.length - 1];
-  return `/_next/image?url=${encodeURIComponent(url)}&w=${allowed}&q=75`;
+  return `/_next/image?url=${encodeURIComponent(url)}&w=${allowed}&q=${quality}`;
 }
 
 /** Tiimi logo; nimi on alati kõrval tekstina, seega pilt on dekoratiivne. */

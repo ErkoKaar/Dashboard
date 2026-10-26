@@ -3,11 +3,14 @@
 import { ComponentType, SVGProps, useId, useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
 
-export interface SideMenuItem<T extends string> {
+export type SideMenuItem<T extends string> = {
   id: T;
   label: string;
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
-}
+} & (
+  | { icon: ComponentType<SVGProps<SVGSVGElement>>; logo?: undefined }
+  /** Värviline logo ikooni asemel (liigad, public/leagues/): jääb oma värvi, mitteaktiivsena tuhmim. */
+  | { logo: string; icon?: undefined }
+);
 
 interface SideMenuProps<T extends string> {
   items: SideMenuItem<T>[];
@@ -84,7 +87,7 @@ export function SideMenu<T extends string>({ items, active, onSelect }: SideMenu
 
           <nav aria-labelledby={titleId}>
             <ul className="flex flex-col gap-1">
-              {items.map(({ id, label, icon: Icon }) => {
+              {items.map(({ id, label, icon: Icon, logo }) => {
                 const isActive = id === active;
                 return (
                   <li key={id}>
@@ -95,16 +98,29 @@ export function SideMenu<T extends string>({ items, active, onSelect }: SideMenu
                         onSelect(id);
                         close();
                       }}
-                      className={`flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left text-[15px] font-medium transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent-bright ${
+                      className={`group flex w-full cursor-pointer items-center gap-3.5 rounded-xl px-3 py-3.5 text-left text-base font-medium transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent-bright ${
                         isActive
                           ? "bg-white/[0.1] text-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.18)]"
                           : "text-muted hover:bg-white/[0.05] hover:text-foreground"
                       }`}
                     >
-                      <Icon
-                        className={`h-4 w-4 shrink-0 ${isActive ? "text-accent-bright" : ""}`}
-                        aria-hidden
-                      />
+                      {/* Ühesuurune pesa: 28 px logo ja 20 px ikooni korral jäävad nimed samale joonele. */}
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center" aria-hidden>
+                        {logo ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={logo}
+                            alt=""
+                            width={28}
+                            height={28}
+                            className={`h-7 w-7 object-contain transition-opacity duration-200 ${
+                              isActive ? "" : "opacity-75 group-hover:opacity-100"
+                            }`}
+                          />
+                        ) : (
+                          Icon && <Icon className={`h-5 w-5 ${isActive ? "text-accent-bright" : ""}`} />
+                        )}
+                      </span>
                       {label}
                     </button>
                   </li>

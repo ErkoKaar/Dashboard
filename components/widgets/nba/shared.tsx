@@ -4,6 +4,7 @@ import { CSSProperties, useState } from "react";
 import { useCountUp } from "@/lib/useCountUp";
 import { useLeague } from "./league";
 import { resizedImage } from "./media";
+import { useWithoutBackground, withoutBackground } from "./whiteBackground";
 
 // Parimate soorituste ja MVP race'i ühised osad: tiimivärv, mängija väljalõige, avatar, statistikariba.
 
@@ -54,45 +55,51 @@ export function cardBackground(hex: string | null): CSSProperties {
 
 // --- Pildid ---
 
-// Väljalõige (läbipaistev taust) mahub kaardi kõrgusele ja võib nime taha ulatuda. Stuudioportree
-// valgel taustal on raamitud foto kaardi servast vahega, et valge taust mõjuks tahtliku fotona ega jookseks
-// tiimivärvi sisse. Suurel kaardil on see telefonis üleval suure numbri kõrval (sulgemisnoole all), et
-// nimi saaks all kogu laiuse; laiemal ekraanil paremas all nurgas.
-const CUTOUT =
-  "bottom-0 right-0 h-full w-auto max-w-[68%] object-contain object-right-bottom [mask-image:linear-gradient(to_right,transparent,#000_28%)]";
-const FRAME = "aspect-[4/5] rounded-xl object-cover object-[50%_15%] ring-1 ring-white/25 shadow-[0_18px_36px_-14px_rgb(0_0_0/0.65)]";
-const PHOTO_STYLES = {
-  cutout: { lg: CUTOUT, sm: CUTOUT },
-  portrait: {
-    lg: `${FRAME} right-5 top-11 h-[46%] sm:bottom-6 sm:right-6 sm:top-auto sm:h-[72%]`,
-    sm: `${FRAME} bottom-4 right-4 h-[76%]`,
-  },
-};
+const CUTOUT_SIZES = { lg: [548, 400], sm: [330, 241] } as const;
 
 /**
  * Mängija väljalõige kaardi paremas servas. Kutsuja annab key={src}: uus mängija saab uue
- * laadimiskatse, ka kui eelmise pilt puudus.
+ * laadimiskatse, ka kui eelmise pilt puudus. Valge taustaga foto (Est-Lat) näidatakse alles siis, kui
+ * brauser on tausta eemaldanud, et kaardile ei vilksataks valget ruutu. Suur kaart (liider, avatud MVP
+ * kaart) on vaates esimene: selle foto laaditakse kohe ja enne teisi, väiksemad alles ekraanile jõudes.
  */
 export function Cutout({ src, size }: { src: string; size: "lg" | "sm" }) {
-  const { photoStyle } = useLeague();
+  const { whitePhotoBackground } = useLeague();
   const [failed, setFailed] = useState(false);
-  if (failed) return null;
+  const [width, height] = CUTOUT_SIZES[size];
+  const priority = size === "lg";
+  const sized = resizedImage(src, width, height);
+  const keyed = useWithoutBackground(whitePhotoBackground ? sized : null, width, priority);
+  const shown = whitePhotoBackground ? keyed : sized;
+  if (failed || !shown) return null;
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={size === "lg" ? resizedImage(src, 548, 400) : resizedImage(src, 330, 241)}
+      src={shown}
       alt=""
-      loading="lazy"
+      loading={priority ? "eager" : "lazy"}
+      fetchPriority={priority ? "high" : "auto"}
       onError={() => setFailed(true)}
-      className={`pointer-events-none absolute ${PHOTO_STYLES[photoStyle][size]}`}
+      className="pointer-events-none absolute bottom-0 right-0 h-full w-auto max-w-[68%] object-contain object-right-bottom [mask-image:linear-gradient(to_right,transparent,#000_28%)]"
     />
   );
 }
 
+/** Laeb suure kaardi foto ette (MVP race'i eellaadimine), et vaate avamisel oleks see juba olemas. */
+export function preloadCutout(src: string, whitePhotoBackground: boolean): void {
+  const [width, height] = CUTOUT_SIZES.lg;
+  const sized = resizedImage(src, width, height);
+  if (whitePhotoBackground) void withoutBackground(sized, width);
+  else new Image().src = sized;
+}
+
 /** Ümar pilt tiimivärvi taustal. Kutsuja annab key={headshot} samal põhjusel nagu Cutout'il. */
 export function Avatar({ headshot, color }: { headshot: string | null; color: string | null }) {
+  const { whitePhotoBackground } = useLeague();
   const [failed, setFailed] = useState(false);
-  const photo = headshot && !failed ? headshot : null;
+  const sized = headshot ? resizedImage(headshot, 96, 96) : null;
+  const keyed = useWithoutBackground(whitePhotoBackground ? sized : null, 96);
+  const photo = failed ? null : whitePhotoBackground ? keyed : sized;
   return (
     <span
       className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full ring-1 ring-white/15"
@@ -102,7 +109,7 @@ export function Avatar({ headshot, color }: { headshot: string | null; color: st
       {photo && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={resizedImage(photo, 96, 96)}
+          src={photo}
           alt=""
           loading="lazy"
           onError={() => setFailed(true)}

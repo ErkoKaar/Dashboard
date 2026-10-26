@@ -1,11 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // EuroLeague'i mängijapildid (~450 KB) ja vapid käivad läbi Next'i pildioptimeerija
-  // (components/widgets/nba/media.tsx resizedImage).
+  // Korvpallivaadete mängijapildid ja logod käivad läbi Next'i pildioptimeerija, mis teeb neist WebP-i
+  // (components/widgets/nba/media.tsx resizedImage): ESPN-i PNG ~220 KB -> ~30 KB, EuroLeague ~450 KB -> ~50 KB.
+  // Est-Lat liiga fotod samuti: brauser eemaldab nende valge tausta lõuendil ja see töötab ainult oma
+  // päritoluga pildiga (nba/whiteBackground.ts).
   images: {
     remotePatterns: [
+      { protocol: "https", hostname: "a.espncdn.com", pathname: "/combiner/**" },
       { protocol: "https", hostname: "media-cdn.cortextech.io" },
       { protocol: "https", hostname: "media-cdn.incrowdsports.com" },
+      { protocol: "https", hostname: "www.estlatbl.com", pathname: "/cache/**" },
     ],
   },
   // CSP tuleb middleware.ts-ist (vajab iga päringu jaoks uut nonce'i); siin on staatilised päised.
