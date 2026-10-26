@@ -1,16 +1,13 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import { flushSync } from "react-dom";
-import type { AutoLayout } from "animejs";
+import { useId, useState } from "react";
 import { Check, ChevronDown, Repeat } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import { CheckToggle } from "@/components/ui/CheckToggle";
 import { ProgressRing } from "@/components/ui/ProgressRing";
-import { GalleryGrid } from "@/components/ui/GalleryGrid";
-import { GalleryCard } from "@/components/ui/GalleryCard";
+import { ChecklistRow, checklistTextClass } from "@/components/ui/ChecklistRow";
 import { CelebrationOverlay } from "@/components/ui/CelebrationOverlay";
 import { useTodayHabits, useToggleHabit, type TodayHabit } from "@/lib/queries/useTodayHabits";
 import { dailyScoreStatus, scoreBadge } from "@/lib/dailyScoreStatus";
@@ -20,43 +17,14 @@ export function HabitsWidget() {
   const { data, isLoading, error } = useTodayHabits();
   const toggleHabit = useToggleHabit();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const layoutRef = useRef<AutoLayout | null>(null);
-
-  // Laienev kaart muutub gridis täislaiuseks (col-span-full), mida CSS ei animeeri.
-  // anime.js layout salvestab kaartide asukohad enne muutust ja liigutab need uutesse kohtadesse.
-  // Moodul laetakse eraldi chunk'ina; kuni see pole kohal, laieneb kaart hetkega.
-  const gridRef = useCallback((node: HTMLDivElement | null) => {
-    layoutRef.current?.revert();
-    layoutRef.current = null;
-    if (!node) return;
-    import("animejs")
-      .then(({ createLayout, cubicBezier }) => {
-        if (!node.isConnected) return;
-        layoutRef.current = createLayout(node, {
-          children: ".habit-tile",
-          duration: 250,
-          ease: cubicBezier(0.77, 0, 0.175, 1),
-        });
-      })
-      .catch(() => {});
-  }, []);
 
   function toggleExpand(id: string) {
-    const apply = () =>
-      setExpanded((prev) => {
-        const next = new Set(prev);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        return next;
-      });
-
-    const layout = layoutRef.current;
-    if (!layout || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      apply();
-      return;
-    }
-    // flushSync: layout peab uue DOM-i nägema kohe, mitte järgmises renderis.
-    layout.update(() => flushSync(apply));
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   // Score counts top-level habits only: a parent counts as one, done when all
@@ -92,12 +60,11 @@ export function HabitsWidget() {
             </div>
           </div>
 
-          <div ref={gridRef}>
-            <GalleryGrid>
-              {data.map((habit) =>
-                habit.children.length > 0 ? (
-                  <ParentHabitCard
-                    key={habit.id}
+          <ul className="flex flex-col gap-1">
+            {data.map((habit) => (
+              <li key={habit.id}>
+                {habit.children.length > 0 ? (
+                  <ParentHabit
                     habit={habit}
                     expanded={expanded.has(habit.id)}
                     onToggleExpand={() => toggleExpand(habit.id)}
@@ -106,24 +73,14 @@ export function HabitsWidget() {
                     }
                   />
                 ) : (
-                  <GalleryCard key={habit.id} done={habit.done} className="habit-tile">
-                    <CheckToggle
-                      checked={habit.done}
-                      onChange={() => toggleHabit.mutate({ habitId: habit.id, done: !habit.done })}
-                      aria-label={habit.done ? "Märgi tegemata" : "Märgi tehtud"}
-                    />
-                    <span
-                      className={`line-clamp-2 text-sm ${
-                        habit.done ? "font-semibold text-foreground" : "text-foreground"
-                      }`}
-                    >
-                      {habit.name}
-                    </span>
-                  </GalleryCard>
-                ),
-              )}
-            </GalleryGrid>
-          </div>
+                  <HabitRow
+                    habit={habit}
+                    onToggle={() => toggleHabit.mutate({ habitId: habit.id, done: !habit.done })}
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
         </>
       )}
 
@@ -132,78 +89,118 @@ export function HabitsWidget() {
   );
 }
 
-interface ParentHabitCardProps {
+function HabitRow({ habit, onToggle }: { habit: TodayHabit; onToggle: () => void }) {
+  return (
+    <ChecklistRow
+      done={habit.done}
+      leading={
+        <CheckToggle
+          checked={habit.done}
+          onChange={onToggle}
+          aria-label={habit.done ? "Märgi tegemata" : "Märgi tehtud"}
+        />
+      }
+    >
+      <span className={checklistTextClass(habit.done)}>{habit.name}</span>
+    </ChecklistRow>
+  );
+}
+
+/** Ülemise habiti seis: valmis on täidetud ring linnukesega, muidu kaar tehtud alamhabitide osaga. */
+function ParentProgress({ done, total }: { done: number; total: number }) {
+  if (total > 0 && done === total) {
+    return (
+      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent" aria-hidden>
+        <Check className="h-3.5 w-3.5 text-background" strokeWidth={3} />
+      </span>
+    );
+  }
+  const circumference = 2 * Math.PI * 10;
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6 -rotate-90" aria-hidden>
+      <circle cx="12" cy="12" r="10" fill="none" strokeWidth="2" className="stroke-muted/60" />
+      <circle
+        cx="12"
+        cy="12"
+        r="10"
+        fill="none"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeDasharray={circumference}
+        strokeDashoffset={circumference * (1 - (total > 0 ? done / total : 0))}
+        className="stroke-accent transition-[stroke-dashoffset] duration-[250ms] ease-[cubic-bezier(0.23,1,0.32,1)]"
+        opacity={done > 0 ? 1 : 0}
+      />
+    </svg>
+  );
+}
+
+interface ParentHabitProps {
   habit: TodayHabit;
   expanded: boolean;
   onToggleExpand: () => void;
   onToggleChild: (child: TodayHabit) => void;
 }
 
-function ParentHabitCard({ habit, expanded, onToggleExpand, onToggleChild }: ParentHabitCardProps) {
+// Alamhabitidega habit: rida avab alamhabitid enda alla (accordion), taandega ja juhtjoonega, mis
+// algab ülemise rea ringi alt. Kogu rida on avamisnupp; ring ja loendur on ainult näit.
+function ParentHabit({ habit, expanded, onToggleExpand, onToggleChild }: ParentHabitProps) {
+  const panelId = useId();
   const doneChildren = habit.children.filter((c) => c.done).length;
 
   return (
-    <GalleryCard done={habit.done} className={`habit-tile ${expanded ? "col-span-full" : ""}`}>
-      <button
-        type="button"
-        onClick={onToggleExpand}
-        aria-expanded={expanded}
-        className="flex w-full items-center gap-2 text-left"
+    <div>
+      <ChecklistRow
+        done={habit.done}
+        leading={<ParentProgress done={doneChildren} total={habit.children.length} />}
+        trailing={
+          <>
+            <span className="font-mono text-xs text-muted" aria-hidden>
+              {doneChildren}/{habit.children.length}
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 text-muted transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] ${expanded ? "rotate-180" : ""}`}
+              aria-hidden
+            />
+          </>
+        }
       >
-        {/* Read-only derived state — a parent can't be checked manually. */}
-        <span
-          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${
-            habit.done ? "border-accent bg-accent" : "border-muted/60 bg-transparent"
-          }`}
-          aria-hidden
-        >
-          {habit.done && <Check className="h-3.5 w-3.5 text-background" strokeWidth={3} />}
-        </span>
-        <span
-          className={`line-clamp-2 flex-1 text-sm ${
-            habit.done ? "font-semibold text-foreground" : "text-foreground"
-          }`}
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          aria-expanded={expanded}
+          aria-controls={panelId}
+          className={`w-full cursor-pointer text-left outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:ring-2 focus-visible:after:ring-accent/60 ${checklistTextClass(habit.done)}`}
         >
           {habit.name}
-        </span>
-        <span className="shrink-0 font-mono text-xs text-muted">
-          {doneChildren}/{habit.children.length}
-        </span>
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 text-muted transition-transform ${expanded ? "rotate-180" : ""}`}
-          aria-hidden
-        />
-      </button>
+          <span className="sr-only">
+            , {doneChildren}/{habit.children.length} tehtud
+          </span>
+        </button>
+      </ChecklistRow>
 
-      {expanded && (
-        <div className="mt-3 flex items-center gap-3 border-t border-border/40 pt-3">
-          <ProgressRing
-            done={doneChildren}
-            total={habit.children.length}
-            size={72}
-            strokeWidth={5}
-            aria-label={`${habit.name}: ${doneChildren}/${habit.children.length} tehtud`}
-          />
-          <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-3">
-            {habit.children.map((child) => (
-              <GalleryCard key={child.id} done={child.done}>
-                <CheckToggle
-                  checked={child.done}
-                  onChange={() => onToggleChild(child)}
-                  aria-label={child.done ? "Märgi tegemata" : "Märgi tehtud"}
-                />
-                <span
-                  className={`line-clamp-2 text-sm ${
-                    child.done ? "font-semibold text-foreground" : "text-foreground"
-                  }`}
-                >
-                  {child.name}
-                </span>
-              </GalleryCard>
-            ))}
-          </div>
-        </div>
-      )}
-    </GalleryCard>
+      {/* 0fr → 1fr: paneel avaneb sisu kõrguseni ilma seda mõõtmata. inert: suletud alamhabitid ei saa
+          fookust. Vähendatud liikumisel kõrgus muutub kohe, sisu ilmub ainult hajutusega. */}
+      <div
+        id={panelId}
+        inert={!expanded}
+        className={`grid transition-[grid-template-rows] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none ${
+          expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        }`}
+      >
+        <ul
+          className={`ml-6 flex min-h-0 flex-col gap-1 overflow-hidden border-l border-white/10 pl-2 transition-opacity duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] ${
+            expanded ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          {/* Vahe ülemisest reast on li-l, mitte ul-il: ul-i polsterdus jääks suletuna näha. */}
+          {habit.children.map((child) => (
+            <li key={child.id} className="first:pt-1 last:pb-1">
+              <HabitRow habit={child} onToggle={() => onToggleChild(child)} />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }

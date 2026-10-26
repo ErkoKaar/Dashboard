@@ -7,8 +7,12 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import { CheckToggle } from "@/components/ui/CheckToggle";
 import { ProgressRing } from "@/components/ui/ProgressRing";
-import { GalleryGrid } from "@/components/ui/GalleryGrid";
-import { GalleryCard } from "@/components/ui/GalleryCard";
+import {
+  ChecklistRow,
+  ChecklistRowAction,
+  ChecklistRowEditor,
+  checklistTextClass,
+} from "@/components/ui/ChecklistRow";
 import { AddTile } from "@/components/ui/AddTile";
 import { CelebrationOverlay } from "@/components/ui/CelebrationOverlay";
 import {
@@ -120,52 +124,69 @@ export function TasksWidget() {
             </div>
           </div>
 
-          <GalleryGrid>
-            {(data ?? []).map((task) => (
-              <GalleryCard key={task.id} done={task.done}>
-                <div className="flex items-start justify-between gap-1.5">
-                  <CheckToggle
-                    checked={task.done}
-                    onChange={() => toggle(task)}
-                    aria-label={task.done ? "Märgi tegemata" : "Märgi tehtud"}
-                  />
-                  {/* Kalendri-taski kustutamine ja muutmine käib Google Calendaris. */}
-                  {task.origin !== "calendar" && (
-                    <button
-                      onClick={() => remove(task)}
-                      className="cursor-pointer p-0.5 text-muted transition-colors duration-200 hover:text-destructive"
-                      aria-label={task.origin === "task" ? "Kustuta" : "Eemalda tänasest"}
-                    >
-                      <X className="h-3.5 w-3.5" aria-hidden />
-                    </button>
-                  )}
-                </div>
-                {editingId === task.id ? (
-                  <input
-                    autoFocus
-                    className="border-b border-border bg-transparent text-sm text-foreground outline-none focus:border-accent"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onBlur={() => commitEdit(task)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") commitEdit(task);
-                      if (e.key === "Escape") setEditingId(null);
-                    }}
-                  />
-                ) : (
-                  <span
-                    onClick={() => task.origin !== "calendar" && startEdit(task.id, task.title)}
-                    className={`line-clamp-2 text-sm ${task.origin !== "calendar" ? "cursor-text" : ""} ${
-                      task.done ? "font-semibold text-foreground" : "text-foreground"
-                    }`}
+          <ul className="flex flex-col gap-1">
+            {(data ?? []).map((task) => {
+              // Kalendri-taski kustutamine ja muutmine käib Google Calendaris.
+              const editable = task.origin !== "calendar";
+              const editing = editingId === task.id;
+              return (
+                <li key={task.id}>
+                  <ChecklistRow
+                    done={task.done}
+                    active={editing}
+                    leading={
+                      <CheckToggle
+                        checked={task.done}
+                        onChange={() => toggle(task)}
+                        aria-label={task.done ? "Märgi tegemata" : "Märgi tehtud"}
+                      />
+                    }
+                    trailing={
+                      editable &&
+                      !editing && (
+                        <ChecklistRowAction
+                          label={task.origin === "task" ? "Kustuta" : "Eemalda tänasest"}
+                          onClick={() => remove(task)}
+                        >
+                          <X className="h-4 w-4" aria-hidden />
+                        </ChecklistRowAction>
+                      )
+                    }
                   >
-                    {task.title}
-                  </span>
-                )}
-              </GalleryCard>
-            ))}
-            <AddTile placeholder="Uus task..." onAdd={(title) => addTask.mutate({ title })} disabled={addTask.isPending} />
-          </GalleryGrid>
+                    {editing ? (
+                      <ChecklistRowEditor
+                        value={editValue}
+                        onChange={setEditValue}
+                        onCommit={() => commitEdit(task)}
+                        onCancel={() => setEditingId(null)}
+                        aria-label="Taski nimi"
+                      />
+                    ) : editable ? (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(task.id, task.title)}
+                        title="Muuda"
+                        className={`w-full cursor-text text-left ${checklistTextClass(task.done)}`}
+                      >
+                        {task.title}
+                      </button>
+                    ) : (
+                      <span className={checklistTextClass(task.done)}>{task.title}</span>
+                    )}
+                  </ChecklistRow>
+                </li>
+              );
+            })}
+            <li>
+              <AddTile
+                layout="row"
+                label="Uus task"
+                placeholder="Uus task..."
+                onAdd={(title) => addTask.mutate({ title })}
+                disabled={addTask.isPending}
+              />
+            </li>
+          </ul>
 
           {mutationError && <p className="mt-2 text-sm text-destructive">Toiming ebaõnnestus.</p>}
         </>
