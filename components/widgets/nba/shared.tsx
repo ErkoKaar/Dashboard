@@ -2,6 +2,7 @@
 
 import { CSSProperties, useState } from "react";
 import { useCountUp } from "@/lib/useCountUp";
+import { useLeague } from "./league";
 import { resizedImage } from "./media";
 
 // Parimate soorituste ja MVP race'i ühised osad: tiimivärv, mängija väljalõige, avatar, statistikariba.
@@ -53,11 +54,27 @@ export function cardBackground(hex: string | null): CSSProperties {
 
 // --- Pildid ---
 
+// Väljalõige (läbipaistev taust) mahub kaardi kõrgusele ja võib nime taha ulatuda. Stuudioportree
+// valgel taustal on raamitud foto kaardi servast vahega, et valge taust mõjuks tahtliku fotona ega jookseks
+// tiimivärvi sisse. Suurel kaardil on see telefonis üleval suure numbri kõrval (sulgemisnoole all), et
+// nimi saaks all kogu laiuse; laiemal ekraanil paremas all nurgas.
+const CUTOUT =
+  "bottom-0 right-0 h-full w-auto max-w-[68%] object-contain object-right-bottom [mask-image:linear-gradient(to_right,transparent,#000_28%)]";
+const FRAME = "aspect-[4/5] rounded-xl object-cover object-[50%_15%] ring-1 ring-white/25 shadow-[0_18px_36px_-14px_rgb(0_0_0/0.65)]";
+const PHOTO_STYLES = {
+  cutout: { lg: CUTOUT, sm: CUTOUT },
+  portrait: {
+    lg: `${FRAME} right-5 top-11 h-[46%] sm:bottom-6 sm:right-6 sm:top-auto sm:h-[72%]`,
+    sm: `${FRAME} bottom-4 right-4 h-[76%]`,
+  },
+};
+
 /**
  * Mängija väljalõige kaardi paremas servas. Kutsuja annab key={src}: uus mängija saab uue
  * laadimiskatse, ka kui eelmise pilt puudus.
  */
 export function Cutout({ src, size }: { src: string; size: "lg" | "sm" }) {
+  const { photoStyle } = useLeague();
   const [failed, setFailed] = useState(false);
   if (failed) return null;
   return (
@@ -67,7 +84,7 @@ export function Cutout({ src, size }: { src: string; size: "lg" | "sm" }) {
       alt=""
       loading="lazy"
       onError={() => setFailed(true)}
-      className="pointer-events-none absolute bottom-0 right-0 h-full w-auto max-w-[68%] object-contain object-right-bottom [mask-image:linear-gradient(to_right,transparent,#000_28%)]"
+      className={`pointer-events-none absolute ${PHOTO_STYLES[photoStyle][size]}`}
     />
   );
 }

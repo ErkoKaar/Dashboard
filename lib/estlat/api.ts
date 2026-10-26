@@ -10,6 +10,7 @@ import type {
   NbaLeadersResponse,
   NbaMvpEntry,
   NbaMvpResponse,
+  NbaPerformance,
   NbaPeriod,
   NbaPlayerLine,
   NbaStandingsResponse,
@@ -17,6 +18,7 @@ import type {
   NbaTeamBox,
   NbaTeamSide,
 } from "@/lib/queries/useNba";
+import { clubColor } from "./colors";
 
 // Ainult serveris (app/api/estlat/*). Eesti-Läti korvpalliliiga avalikku API-t ei paku: andmed
 // loetakse estlatbl.com lehtede HTML-tabelitest (ajakava, tulemused, boxscore, turniiritabel) ja
@@ -55,8 +57,8 @@ const tablesOf = (html: string) => [...html.matchAll(/<table[\s\S]*?<\/table>/g)
 const imageOf = (html: string) => html.match(/<img[^>]+src="(https:\/\/[^"]+)"/)?.[1] ?? null;
 
 /** Lehe sisuosa: ülal on mängude karussell, mille numbrid ei tohi tabelitega segi minna. */
-async function fetchPage(path: string): Promise<string> {
-  const html = await fetchText(`${SITE}/${path}`, { next: { revalidate: PAGE_REVALIDATE } });
+async function fetchPage(path: string, revalidate = PAGE_REVALIDATE): Promise<string> {
+  const html = await fetchText(`${SITE}/${path}`, { next: { revalidate } });
   const start = html.indexOf("<article");
   return start >= 0 ? html.slice(start) : html;
 }
@@ -242,6 +244,54 @@ export async function getGameDays(period: NbaPeriod): Promise<NbaGamesResponse> 
   return { today, days: groupGameDays(games, today, period) };
 }
 
+// --- Mängijate fotod ---
+
+// Boxscore'is fotosid pole; mängijate lehel (kõik hooaja mängijad) on enamikul 400x400 portree.
+// Fotod ja tiimivärvid lisatakse alles vastuse koostamisel, mitte vahemällu jäävatesse boxscore'idesse
+// ja päevade topidesse: hiljem lisandunud foto või muudetud värv jõuab nii ka vanade mängude juurde.
+const PHOTOS_REVALIDATE = 86400;
+
+/** Nime võti: diakriitikata, ainult tähed ja numbrid ("Luis Carlos Rodriguez Jr." = "... Jr"). */
+const nameKey = (name: string) =>
+  name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+/** Mängija kaart: <div class="photo"><img src=...></div><div class="name">Sverre Aav</div>. */
+async function fetchPlayerPhotos(): Promise<Map<string, string>> {
+  const html = await fetchPage("mangijad", PHOTOS_REVALIDATE);
+  const photos = new Map<string, string>();
+  const ambiguous = new Set<string>();
+  for (const [, photo, name] of html.matchAll(/<div class="photo">([\s\S]*?)<\/div>\s*<div class="name">([\s\S]*?)<\/div>/g)) {
+    const src = imageOf(photo);
+    const key = nameKey(text(name));
+    if (!key || !src?.includes("player-picture")) continue;
+    // Kaks sama nimega mängijat: foto jääb ära, et keegi ei saaks teise pilti.
+    if (photos.has(key) && photos.get(key) !== src) ambiguous.add(key);
+    photos.set(key, src);
+  }
+  for (const key of ambiguous) photos.delete(key);
+  return photos;
+}
+
+/** Fotod on lisainfo: lehe vea korral jäävad need lihtsalt ära. */
+const playerPhotos = () => fetchPlayerPhotos().catch(() => new Map<string, string>());
+const photoOf = (photos: Map<string, string>, name: string) => photos.get(nameKey(name)) ?? null;
+
+function withPhotos(boxscore: NbaBoxscore, photos: Map<string, string>): NbaBoxscore {
+  return {
+    ...boxscore,
+    teams: boxscore.teams.map((team) => ({
+      ...team,
+      color: clubColor(team.abbreviation),
+      players: team.players.map((line) => ({ ...line, headshot: photoOf(photos, line.name) })),
+    })),
+  };
+}
+
 // --- Boxscore ---
 
 export const isGameId = (id: string) => /^\d{9,12}$/.test(id);
@@ -337,7 +387,7 @@ function toTeamBox(team: NbaTeamSide, players: NbaPlayerLine[], home: boolean): 
     name: team.name,
     shortName: team.name,
     logo: team.logo,
-    color: null,
+    color: clubColor(team.abbreviation),
     score: team.score,
     winner: team.winner,
     home,
@@ -364,11 +414,12 @@ async function loadBoxscore(id: string): Promise<{ boxscore: NbaBoxscore; final:
 }
 
 export async function getLiveBoxscore(id: string): Promise<NbaBoxscore> {
-  return (await loadBoxscore(id)).boxscore;
+  const [{ boxscore }, photos] = await Promise.all([loadBoxscore(id), playerPhotos()]);
+  return withPhotos(boxscore, photos);
 }
 
-/** Lõppenud mängu boxscore jääb vahemällu igaveseks; pooleli mäng visatakse (ei salvestu). */
-export const getFinalBoxscore = unstable_cache(
+/** Lõppenud mängu boxscore jääb vahemällu igaveseks (fotodeta); pooleli mäng visatakse (ei salvestu). */
+const cachedFinalBoxscore = unstable_cache(
   async (id: string): Promise<NbaBoxscore> => {
     const { boxscore, final } = await loadBoxscore(id);
     if (!final) throw new Error("Mäng pole veel lõppenud");
@@ -379,17 +430,34 @@ export const getFinalBoxscore = unstable_cache(
   { revalidate: false },
 );
 
+export async function getFinalBoxscore(id: string): Promise<NbaBoxscore> {
+  const [boxscore, photos] = await Promise.all([cachedFinalBoxscore(id), playerPhotos()]);
+  return withPhotos(boxscore, photos);
+}
+
 // --- Parimad sooritused ---
 
 export async function getLeaders(period: NbaPeriod): Promise<NbaLeadersResponse> {
   const { today, days } = await getGameDays(period);
-  return buildLeaders({
-    league: "estlat",
-    today,
-    days,
-    getFinalBoxscore: (game) => getFinalBoxscore(game.id),
-    concurrency: { days: 2, boxscores: 2 },
+  const [leaders, photos] = await Promise.all([
+    buildLeaders({
+      league: "estlat",
+      today,
+      days,
+      getFinalBoxscore: (game) => cachedFinalBoxscore(game.id),
+      concurrency: { days: 2, boxscores: 2 },
+    }),
+    playerPhotos(),
+  ]);
+  const withPhoto = (performance: NbaPerformance): NbaPerformance => ({
+    ...performance,
+    player: { ...performance.player, headshot: photoOf(photos, performance.player.name) },
+    team: { ...performance.team, color: clubColor(performance.team.abbreviation) },
   });
+  const top = Object.fromEntries(
+    Object.entries(leaders.top).map(([metric, performances]) => [metric, performances.map(withPhoto)]),
+  ) as NbaLeadersResponse["top"];
+  return { ...leaders, top };
 }
 
 // --- MVP race ---
@@ -423,9 +491,9 @@ interface Totals {
  */
 export async function getMvpRace(): Promise<NbaMvpResponse> {
   const now = Date.now();
-  const { raw, games } = await seasonGames(now);
+  const [{ raw, games }, photos] = await Promise.all([seasonGames(now), playerPhotos()]);
   const played = games.filter((game) => game.completed);
-  const boxscores = await settleWithLimit(played, BOXSCORE_CONCURRENCY, (game) => getFinalBoxscore(game.id));
+  const boxscores = await settleWithLimit(played, BOXSCORE_CONCURRENCY, (game) => cachedFinalBoxscore(game.id));
 
   const totals = new Map<string, Totals>();
   for (const boxscore of boxscores) {
@@ -472,11 +540,11 @@ export async function getMvpRace(): Promise<NbaMvpResponse> {
       const avg = (value: number) => round1(value / total.games);
       const record = records.get(total.team);
       return {
-        player: total.player,
+        player: { ...total.player, headshot: photoOf(photos, total.player.name) },
         team: {
           abbreviation: total.team,
           name: teamNames.get(total.team) ?? total.team,
-          color: null,
+          color: clubColor(total.team),
           wins: record?.wins ?? null,
           losses: record?.losses ?? null,
         },
