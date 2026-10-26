@@ -39,6 +39,13 @@ export function nextDate(date: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** ISO kuupäev nihutatuna päevade võrra (negatiivne = varasem), UTC-s nagu nextDate. */
+export function shiftDate(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export function toDayRange(date: string): { start: string; end: string } {
   return { start: `${date}T00:00:00.000Z`, end: `${nextDate(date)}T00:00:00.000Z` };
 }

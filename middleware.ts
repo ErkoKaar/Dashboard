@@ -25,6 +25,7 @@ export function middleware(request: NextRequest) {
     origin(process.env.NEXT_PUBLIC_ESTHOOP_API_URL),
     "https://api.chess.com",
     "https://api.open-meteo.com",
+    "https://content.api.delfi.ee",
     isDev ? "ws:" : null, // Next dev HMR
   ].filter(Boolean);
 
@@ -37,6 +38,8 @@ export function middleware(request: NextRequest) {
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
     `connect-src ${connectSrc.join(" ")}`,
+    // NBA videoaken: Motion Stationi recapid YouTube'i küpsistevabast embed'ist.
+    "frame-src https://www.youtube-nocookie.com",
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",

@@ -2,33 +2,38 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { FolderTree, ListChecks, LogOut, LucideIcon, StickyNote, User } from "lucide-react";
+import { FolderTree, ListChecks, LogOut, StickyNote, Trophy, User } from "lucide-react";
 import { ClockWidget } from "@/components/widgets/ClockWidget";
 import { WeatherWidget } from "@/components/widgets/WeatherWidget";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { Button } from "@/components/ui/Button";
+import { SideMenu, SideMenuItem } from "@/components/ui/SideMenu";
+import { Basketball } from "@/components/ui/icons/Basketball";
 import { useAuth } from "@/providers/AuthProvider";
 import { useCalendarEvents } from "@/lib/queries/useCalendarEvents";
 import { DashboardContext, WIDGET_REGISTRY } from "@/lib/widgets";
 import { getGreeting } from "@/lib/date";
 import profilePhoto from "@/app/images/CVpilt.jpeg";
 
-const CONTEXTS: { id: DashboardContext; label: string; icon: LucideIcon }[] = [
+const CONTEXTS: SideMenuItem<DashboardContext>[] = [
   { id: "personal", label: "Personal", icon: User },
   { id: "taskmanager", label: "Taskmanager", icon: ListChecks },
   { id: "notes", label: "Quick Notes", icon: StickyNote },
   { id: "files", label: "File system", icon: FolderTree },
+  { id: "delfi", label: "Delfi korvpall", icon: Basketball },
+  { id: "nba", label: "NBA", icon: Trophy },
 ];
 
 // Sõnad ilmuvad hägust teravaks. splitText kirjutab h1 sisu ümber, seega kutsuja annab
 // key={greeting}: uus tervitus on uus element ja React ei pea ümberkirjutatud sisu uuendama.
 // anime.js tuleb eraldi chunk'ina: kuni see saabub, on pealkiri peidus; laadimisvea korral kohe nähtav.
-function GreetingTitle({ text }: { text: string }) {
+// animate=false: Personal vaatesse tagasi tulles on tervitus kohe paigas, sissetulek käib ainult esimesel avamisel.
+function GreetingTitle({ text, animate }: { text: string; animate: boolean }) {
   const ref = useRef<HTMLHeadingElement>(null);
 
   useLayoutEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || !animate) return;
     const mountedAt = performance.now();
     let cancelled = false;
     let cleanup: (() => void) | undefined;
@@ -67,7 +72,7 @@ function GreetingTitle({ text }: { text: string }) {
       cleanup?.();
       el.style.opacity = "";
     };
-  }, []);
+  }, [animate]);
 
   return (
     <h1
@@ -91,6 +96,14 @@ export default function DashboardPage() {
   const { data: calendarEvents } = useCalendarEvents();
 
   const [dashboardContext, setDashboardContext] = useState<DashboardContext>("personal");
+  // Tervitus on ainult Personal vaates. Pärast esimest vaatevahetust on sissetulek nähtud:
+  // tagasi tulles ilmub see kohe, mitte uuesti hägust (vaateid vahetatakse sageli).
+  const [introSeen, setIntroSeen] = useState(false);
+
+  function selectContext(id: DashboardContext) {
+    setIntroSeen(true);
+    setDashboardContext(id);
+  }
 
   // Laadi anime.js sisselogimise ajal ette, et tervitus ei peaks seda ootama.
   // Viga pole siin oluline: GreetingTitle näitab teksti ka ilma animatsioonita.
@@ -117,34 +130,13 @@ export default function DashboardPage() {
     .filter((e) => e.start.getTime() > now.getTime())
     .sort((a, b) => a.start.getTime() - b.start.getTime())[0];
   const eventSummary = nextEvent ? `${nextEvent.event.title} in ${formatCountdown(nextEvent.start, now)}.` : null;
-  const activeIndex = CONTEXTS.findIndex((c) => c.id === dashboardContext);
 
   return (
     <main className="mx-auto max-w-[1600px] px-4 pb-16 pt-4 md:px-8 md:pt-8">
       <header className="mb-10 sm:mb-14">
-        {/* Mobiilis: vaated + väljalogimine esimesel real, aeg/ilm teisel. */}
+        {/* Mobiilis: menüü + väljalogimine esimesel real, aeg/ilm teisel. */}
         <div className="flex flex-wrap items-center gap-3">
-          <nav aria-label="Vaated" className="liquid-glass grid grid-cols-4 rounded-full p-1">
-            <span
-              className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/4)] rounded-full bg-white/[0.12] shadow-[inset_0_1px_0_rgb(255_255_255/0.22)] transition-transform duration-[250ms] ease-[cubic-bezier(0.77,0,0.175,1)]"
-              style={{ transform: `translateX(${activeIndex * 100}%)` }}
-              aria-hidden
-            />
-            {CONTEXTS.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setDashboardContext(id)}
-                aria-pressed={dashboardContext === id}
-                aria-label={label}
-                className={`relative inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-bright sm:px-4 sm:py-1.5 ${
-                  dashboardContext === id ? "text-foreground" : "text-muted hover:text-foreground"
-                }`}
-              >
-                <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                <span className="hidden whitespace-nowrap sm:inline">{label}</span>
-              </button>
-            ))}
-          </nav>
+          <SideMenu items={CONTEXTS} active={dashboardContext} onSelect={selectContext} />
 
           {/* Lapsed on relative, et jääda .liquid-glass hägu-pseudoelemendi kohale. */}
           <div className="order-last w-full sm:order-none sm:ml-auto sm:w-auto">
@@ -162,25 +154,27 @@ export default function DashboardPage() {
         </div>
 
         {/* Pilt tervituse rea keskel; subtiiter teises veerus, et algaks tervitusega samast servast. */}
-        <div className="mt-10 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 sm:mt-16 sm:gap-x-5">
-          <Image
-            src={profilePhoto}
-            alt="Erko Kaar"
-            width={112}
-            height={112}
-            priority
-            className="animate-reveal h-14 w-14 rounded-full object-cover object-top shadow-[0_16px_32px_-16px_rgb(0_5_8/0.8)] ring-1 ring-white/15 sm:h-16 sm:w-16 lg:h-20 lg:w-20"
-          />
-          <GreetingTitle key={greeting} text={`${greeting}, Erko.`} />
-          {eventSummary && (
-            <p
-              className="animate-reveal col-start-2 mt-4 max-w-[60ch] text-base text-foreground/75 sm:text-lg"
-              style={{ animationDelay: "450ms" }}
-            >
-              {eventSummary}
-            </p>
-          )}
-        </div>
+        {dashboardContext === "personal" && (
+          <div className="mt-10 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 sm:mt-16 sm:gap-x-5">
+            <Image
+              src={profilePhoto}
+              alt="Erko Kaar"
+              width={112}
+              height={112}
+              priority
+              className={`${introSeen ? "" : "animate-reveal "}h-14 w-14 rounded-full object-cover object-top shadow-[0_16px_32px_-16px_rgb(0_5_8/0.8)] ring-1 ring-white/15 sm:h-16 sm:w-16 lg:h-20 lg:w-20`}
+            />
+            <GreetingTitle key={greeting} text={`${greeting}, Erko.`} animate={!introSeen} />
+            {eventSummary && (
+              <p
+                className={`${introSeen ? "" : "animate-reveal "}col-start-2 mt-4 max-w-[60ch] text-base text-foreground/75 sm:text-lg`}
+                style={introSeen ? undefined : { animationDelay: "450ms" }}
+              >
+                {eventSummary}
+              </p>
+            )}
+          </div>
+        )}
       </header>
 
       {visibleWidgets.length === 0 ? (
