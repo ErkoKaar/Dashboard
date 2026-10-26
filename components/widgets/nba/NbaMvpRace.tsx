@@ -1,7 +1,7 @@
 "use client";
 
-import { ReactNode } from "react";
-import { Crown, RotateCw } from "lucide-react";
+import { ReactNode, RefObject, useEffect, useRef, useState } from "react";
+import { ChevronDown, ChevronUp, Crown, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -9,8 +9,9 @@ import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import { NbaMvpEntry, useNbaMvpRace } from "@/lib/queries/useNba";
 import { Avatar, cardBackground, CountUpNumber, Cutout, StatCell, StatGrid, teamToneCss } from "./shared";
 
-// MVP race: hooaja 10 parimat EFF järgi. Liider on tiimivärvi bänner, teised vaiksed read, mille all
-// joon näitab EFF-i liidriga võrreldes (ilma taustarajata: joon ise on võidujooks).
+// MVP race: hooaja 10 parimat EFF järgi. Iga mängija on vaikne rida, mille all joon näitab EFF-i
+// liidriga võrreldes (ilma taustarajata: joon ise on võidujooks). Klõps avab rea asemel tiimivärvi
+// kaardi; korraga on lahti üks, vaikimisi liider.
 
 const avg = (value: number) => value.toFixed(1);
 const percent = (value: number | null) => (value === null ? "-" : `${value}%`);
@@ -39,7 +40,23 @@ function record(entry: NbaMvpEntry): string | null {
 // Telefonis 6 + 5 lahtrit, alates sm (kaart on kogu laiuses) kõik 11 ühel real.
 const STRIP_COLUMNS = "grid-cols-6 sm:grid-cols-11";
 
-function Leader({ entry }: { entry: NbaMvpEntry }) {
+/**
+ * Mängija tiimivärvi kaart. countUp ainult vaate esimesel avamisel (liider): klõpsuga avatud
+ * kaardil on number kohe paigas, sest kasutaja tahab seda kohe lugeda.
+ */
+function PlayerCard({
+  entry,
+  rank,
+  countUp,
+  closeRef,
+  onClose,
+}: {
+  entry: NbaMvpEntry;
+  rank: number;
+  countUp: boolean;
+  closeRef: RefObject<HTMLButtonElement | null>;
+  onClose: () => void;
+}) {
   const { player, team } = entry;
   const teamRecord = record(entry);
   return (
@@ -47,19 +64,31 @@ function Leader({ entry }: { entry: NbaMvpEntry }) {
       className="animate-rise-in relative isolate overflow-hidden rounded-2xl text-white shadow-[0_24px_48px_-24px_rgb(0_5_8/0.75)] ring-1 ring-white/10"
       style={cardBackground(team.color)}
     >
+      {/* Kogu kaart on sulgemisnupp (sisu on nupu all, nupp ise on tühi: kehtiv HTML). */}
+      <button
+        ref={closeRef}
+        type="button"
+        aria-expanded
+        onClick={onClose}
+        className="absolute inset-0 z-10 cursor-pointer rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-accent-bright"
+      >
+        <span className="sr-only">Sulge {player.name} kaart</span>
+      </button>
+      <ChevronUp className="absolute right-4 top-4 z-[1] h-5 w-5 text-white/70" aria-hidden />
+
       <div className="relative flex min-h-[14rem] flex-col justify-between p-5 sm:min-h-[17rem] sm:p-6">
         <span
           className="pointer-events-none absolute bottom-0 right-[40%] select-none font-display text-[11rem] font-bold leading-[0.78] text-transparent [-webkit-text-stroke:1.5px_rgb(255_255_255/0.28)] [font-stretch:75%] sm:text-[14rem]"
           aria-hidden
         >
-          1
+          {rank}
         </span>
         {player.headshot && <Cutout key={player.headshot} src={player.headshot} size="lg" />}
 
         <div className="relative">
-          <span className="sr-only">1. koht, </span>
+          <span className="sr-only">{rank}. koht, </span>
           <p className="font-display text-[5.5rem] font-bold leading-[0.82] tracking-[-0.02em] tabular-nums [font-stretch:75%] sm:text-[6.5rem]">
-            <CountUpNumber value={entry.eff} decimals={1} />
+            {countUp ? <CountUpNumber value={entry.eff} decimals={1} /> : avg(entry.eff)}
           </p>
           <p className="mt-1.5 text-[11px] font-semibold text-white/75">EFF mängu kohta</p>
         </div>
@@ -82,38 +111,92 @@ function Leader({ entry }: { entry: NbaMvpEntry }) {
   );
 }
 
-function RaceRow({ entry, rank, leaderEff }: { entry: NbaMvpEntry; rank: number; leaderEff: number }) {
+function RaceRow({
+  entry,
+  rank,
+  leaderEff,
+  open,
+  countUp,
+  onToggle,
+}: {
+  entry: NbaMvpEntry;
+  rank: number;
+  leaderEff: number;
+  open: boolean;
+  countUp: boolean;
+  onToggle: () => void;
+}) {
   const { player, team } = entry;
   const teamRecord = record(entry);
   // Negatiivne või null EFF on hooaja alguses võimalik: joon jääb siis olemata.
   const share = leaderEff > 0 ? Math.max(0, Math.min(1, entry.eff / leaderEff)) : 0;
 
+  // Rida ja kaart vahetavad teineteist, seega fookus tuleb ise üle viia: avades kaardile (focus kerib
+  // selle ka vaatesse, kui eelmise kaardi sulgumine nimekirja nihutas), sulgedes tagasi reale.
+  // Kui rida sulgub, sest avati teine mängija, fookust ei liigutata.
+  const rowButton = useRef<HTMLButtonElement>(null);
+  const cardButton = useRef<HTMLButtonElement>(null);
+  const focusAfter = useRef<"card" | "row" | null>(null);
+  useEffect(() => {
+    if (focusAfter.current === "card" && open) cardButton.current?.focus();
+    if (focusAfter.current === "row" && !open) rowButton.current?.focus();
+    focusAfter.current = null;
+  }, [open]);
+
+  if (open) {
+    return (
+      <li className="py-2">
+        <PlayerCard
+          entry={entry}
+          rank={rank}
+          countUp={countUp}
+          closeRef={cardButton}
+          onClose={() => {
+            focusAfter.current = "row";
+            onToggle();
+          }}
+        />
+      </li>
+    );
+  }
+
   return (
-    <li className="relative flex flex-col gap-3 py-4 lg:flex-row lg:items-center lg:gap-6">
-      <div className="flex min-w-0 items-center gap-3 lg:w-[17rem] lg:shrink-0">
+    // Nupu ::after katab kogu rea (li on relative), nii et klõps statistikaribal avab samuti kaardi.
+    <li className="relative -mx-2 flex flex-col gap-3 rounded-xl px-2 py-4 transition-colors duration-200 hover:bg-white/[0.03] lg:flex-row lg:items-center lg:gap-6">
+      <button
+        ref={rowButton}
+        type="button"
+        aria-expanded={false}
+        onClick={() => {
+          focusAfter.current = "card";
+          onToggle();
+        }}
+        className="flex min-w-0 cursor-pointer items-center gap-3 rounded-lg text-left after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:outline-none focus-visible:after:outline focus-visible:after:outline-2 focus-visible:after:outline-offset-[-2px] focus-visible:after:outline-accent-bright lg:w-[17rem] lg:shrink-0"
+      >
         <span className="w-7 shrink-0 font-display text-2xl font-semibold tabular-nums text-muted [font-stretch:80%]">
           <span className="sr-only">Koht </span>
           {rank}
         </span>
         <Avatar key={player.headshot ?? player.id} headshot={player.headshot} color={team.color} />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-foreground">
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-foreground">
             <span className="sm:hidden">{player.shortName}</span>
             <span className="hidden sm:inline">{player.name}</span>
-          </p>
-          <p className="truncate text-xs text-muted">
+          </span>
+          <span className="block truncate text-xs text-muted">
             {team.name}
             {teamRecord && <span className="tabular-nums text-muted/80"> {teamRecord}</span>}
             {player.position && <span className="text-muted/70"> {player.position}</span>}
-          </p>
-        </div>
-      </div>
+          </span>
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-muted" aria-hidden />
+      </button>
       <div className="min-w-0 flex-1">
         <StatGrid columns={STRIP_COLUMNS} cells={cells(entry)} />
       </div>
       <span
-        className="absolute bottom-0 left-0 h-0.5 rounded-full opacity-80"
-        style={{ width: `${share * 100}%`, background: teamToneCss(team.color) }}
+        className="absolute bottom-0 left-2 h-0.5 rounded-full opacity-80"
+        style={{ width: `calc((100% - 1rem) * ${share})`, background: teamToneCss(team.color) }}
         aria-hidden
       />
     </li>
@@ -137,20 +220,29 @@ function MvpSkeleton() {
 
 export function NbaMvpRace() {
   const { data, isPending, isFetching, refetch } = useNbaMvpRace();
+  // undefined = kasutaja pole veel klõpsanud: lahti on liider ja tema EFF loeb end üles.
+  // null = kõik kaardid kinni.
+  const [openId, setOpenId] = useState<string | null | undefined>(undefined);
 
   let body: ReactNode;
   if (data && data.players.length > 0) {
-    const [leader, ...rest] = data.players;
+    const leader = data.players[0];
+    const activeId = openId === undefined ? leader.player.id : openId;
     body = (
       <>
-        <Leader entry={leader} />
-        {rest.length > 0 && (
-          <ol className="mt-2">
-            {rest.map((entry, i) => (
-              <RaceRow key={entry.player.id} entry={entry} rank={i + 2} leaderEff={leader.eff} />
-            ))}
-          </ol>
-        )}
+        <ol>
+          {data.players.map((entry, i) => (
+            <RaceRow
+              key={entry.player.id}
+              entry={entry}
+              rank={i + 1}
+              leaderEff={leader.eff}
+              open={entry.player.id === activeId}
+              countUp={openId === undefined}
+              onToggle={() => setOpenId(entry.player.id === activeId ? null : entry.player.id)}
+            />
+          ))}
+        </ol>
         <p className="mt-4 text-[11px] leading-relaxed text-muted/70">
           Järjestus hooaja EFF järgi mängu kohta, ESPN-i kvalifitseerunud mängijad. Joon näitab EFF-i liidriga
           võrreldes. Ametlik NBA MVP edetabel on toimetuse hinnang ja võib sellest erineda.
