@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getTasksClient } from "@/lib/supabase/tasksClient";
 import { useTodayTasks } from "@/lib/queries/useTodayTasks";
 import { useTodayHabits } from "@/lib/queries/useTodayHabits";
-import { useTodayFocusStats } from "@/lib/queries/useFocusStats";
 import { useWeather } from "@/lib/queries/useWeather";
 import { useChessTrend } from "@/lib/queries/useChess";
 import { useGithubContributions } from "@/lib/queries/useGithubContributions";
@@ -41,7 +40,6 @@ export function useDashboardSummary() {
 
   const tasks = useTodayTasks();
   const habits = useTodayHabits();
-  const focus = useTodayFocusStats();
   const weather = useWeather();
   const chessTrend = useChessTrend();
   const github = useGithubContributions();
@@ -49,7 +47,6 @@ export function useDashboardSummary() {
   const dataReady =
     !tasks.isLoading &&
     !habits.isLoading &&
-    !focus.isLoading &&
     !weather.isLoading &&
     !chessTrend.isLoading &&
     !github.isLoading;
@@ -70,12 +67,6 @@ export function useDashboardSummary() {
         const payload = {
           tasks: (tasks.data ?? []).map((t) => ({ title: t.title, done: t.done })),
           habits: (habits.data ?? []).map((h) => ({ name: h.name, done: h.done })),
-          focus: focus.data
-            ? {
-                totalMinutes: Math.round(focus.data.totalSeconds / 60),
-                topActivity: focus.data.topActivity?.name ?? null,
-              }
-            : null,
           weather: weather.data
             ? { temperature: weather.data.temperature, description: weather.data.description }
             : null,

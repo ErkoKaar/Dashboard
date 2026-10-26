@@ -1,7 +1,7 @@
 # Dashboard
 
 A personal dashboard that pulls together five independent data sources — FinanceTracker, TaskZen
-(Tasks/Habits/Projects/FocusLoop), EstHoop, GitHub, and Spotify — behind a single dual-session
+(Tasks/Habits/Projects), EstHoop, GitHub, and Spotify — behind a single dual-session
 login. Widgets are freely reorderable (drag-and-drop edit mode), and an AI-generated daily summary
 ties the day's activity together in one line at the bottom of the page.
 
@@ -19,14 +19,13 @@ ties the day's activity together in one line at the bottom of the page.
   TaskZen Supabase project.
 - **Projects** — TaskZen projects and subtasks, with criticality tagging and inline
   create/complete/delete.
-- **FocusLoop** — today's/this week's focus time by activity, with a proportional time-split bar.
 - **Chess** — Chess.com rating, rating trend, and win/loss/draw record (today + all-time).
 - **Calendar** — this week's Google Calendar events.
 - **Spotify** — now playing (with playback controls) and top tracks/artists.
 - **EstHoop** — next Estonian national basketball team game (live countdown) and the last game's
   result + top scorer, pulled from a separate EstHoop backend.
 - **Daily summary** — an Anthropic-generated one-paragraph recap of the day's tasks, habits,
-  focus time, weather, chess games, and GitHub activity, generated once per day after 20:00.
+  weather, chess games, and GitHub activity, generated once per day after 20:00.
 - **Edit mode** — a header toggle puts widgets into a jiggle-and-drag reorder mode (iOS
   home-screen style); the new layout is saved per-user and synced across devices.
 
@@ -37,8 +36,7 @@ fetching/caching), Recharts (charts), @dnd-kit (drag-and-drop widget reordering)
 (icons).
 
 **Backend** — No dedicated backend server. Two separate [Supabase](https://supabase.com) projects
-(Postgres + Auth) — one for FinanceTracker, one for TaskZen (tasks/habits/projects/focus
-sessions) — accessed directly from the client. A handful of Next.js Route Handlers under
+(Postgres + Auth) — one for FinanceTracker, one for TaskZen (tasks/habits/projects) — accessed directly from the client. A handful of Next.js Route Handlers under
 `app/api/*` proxy any third-party API that needs a secret (GitHub, Google Calendar, Spotify,
 Anthropic), so those tokens never reach the browser. Weather (open-meteo), Chess.com, and EstHoop
 are public, unauthenticated APIs called directly from the client.
@@ -145,7 +143,7 @@ settings, then push to the connected branch.
   sessions being present; a single missing session is treated as logged out.
 - **No shared backend between the two Supabase projects** — `financeClient.ts` and
   `tasksClient.ts` are deliberately separate singleton clients; finance data and tasks/habits/
-  focus/projects data live in physically different Postgres databases.
+  projects data live in physically different Postgres databases.
 - **Secrets never reach the browser** — any API requiring a token (GitHub, Google Calendar,
   Spotify, Anthropic) is called only from `app/api/*` Route Handlers. Spotify is split across
   three routes (`now-playing`, `top`, `control`) specifically because now-playing polls every

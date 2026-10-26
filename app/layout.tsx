@@ -28,7 +28,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Dashboard",
-  description: "Personal dashboard aggregating Finance, Tasks, FocusLoop, EstHoop and GitHub data.",
+  description: "Personal dashboard aggregating Finance, Tasks, EstHoop and GitHub data.",
 };
 
 export default function RootLayout({
