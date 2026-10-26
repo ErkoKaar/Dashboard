@@ -15,6 +15,9 @@ import type {
   NbaMvpResponse,
   NbaPeriod,
   NbaPlayerLine,
+  NbaStandingsGroup,
+  NbaStandingsResponse,
+  NbaStandingsRow,
   NbaTeamBox,
   NbaTeamSide,
 } from "@/lib/queries/useNba";
@@ -431,7 +434,14 @@ interface EspnSeasonStats {
 }
 
 interface EspnStandings {
-  children?: { standings?: { entries?: { team?: { id?: string }; stats?: { name?: string; value?: number }[] }[] } }[];
+  children?: {
+    abbreviation?: string;
+    name?: string;
+    standings?: {
+      seasonDisplayName?: string;
+      entries?: { team?: EspnTeam; stats?: { name?: string; value?: number; displayValue?: string }[] }[];
+    };
+  }[];
 }
 
 interface EspnTeams {
@@ -529,4 +539,70 @@ export async function getMvpRace(): Promise<NbaMvpResponse> {
 
   entries.sort((a, b) => b.eff - a.eff || b.pts - a.pts);
   return { season: stats.requestedSeason?.displayName ?? null, players: entries.slice(0, MVP_COUNT) };
+}
+
+// --- Tabel ---
+
+const STANDINGS_REVALIDATE = 300;
+const CONFERENCE_NAMES: Record<string, string> = { East: "Ida", West: "Lääs" };
+
+type EspnStandingsEntry = NonNullable<NonNullable<NonNullable<EspnStandings["children"]>[number]["standings"]>["entries"]>[number];
+
+function toStandingsRow(entry: EspnStandingsEntry): NbaStandingsRow | null {
+  const team = entry.team;
+  const stat = (name: string) => entry.stats?.find((s) => s.name === name);
+  const count = (name: string) => {
+    const value = stat(name)?.value;
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
+  };
+  // Kokkuvõtte väljad ("0-2", "L3"); ESPN annab puuduva väärtuse kohal "-".
+  const text = (name: string) => {
+    const value = stat(name)?.displayValue?.trim();
+    return value && value !== "-" ? value : null;
+  };
+  const seed = count("playoffSeed");
+  const wins = count("wins");
+  const losses = count("losses");
+  if (!team?.id || !team.abbreviation || seed === null || wins === null || losses === null) return null;
+
+  return {
+    position: seed,
+    team: {
+      id: team.id,
+      abbreviation: team.abbreviation,
+      name: team.shortDisplayName ?? team.displayName ?? team.abbreviation,
+      logo: teamLogo(team),
+    },
+    wins,
+    losses,
+    gamesBehind: text("gamesBehind") ?? "-",
+    pointDiff: count("pointDifferential"),
+    home: text("Home"),
+    away: text("Road"),
+    lastTen: text("Last Ten Games"),
+    streak: text("streak"),
+    form: null,
+    change: null,
+  };
+}
+
+/** Konverentside tabelid asetuse (playoffSeed) järgi; ESPN-i järjestus on muu. */
+export async function getStandings(): Promise<NbaStandingsResponse> {
+  const standings = await fetchJson<EspnStandings>(ESPN_STANDINGS, { next: { revalidate: STANDINGS_REVALIDATE } });
+  const groups = (standings.children ?? []).flatMap((conference): NbaStandingsGroup[] => {
+    // ESPN annab hooaja alguses viigis tiimidele sama asetuse (kaks 8., 9. puudub): koht on järjekorranumber.
+    const rows = (conference.standings?.entries ?? [])
+      .map(toStandingsRow)
+      .filter((row): row is NbaStandingsRow => row !== null)
+      .sort((a, b) => a.position - b.position)
+      .map((row, i) => ({ ...row, position: i + 1 }));
+    if (rows.length === 0) return [];
+    const id = conference.abbreviation ?? conference.name ?? String(rows[0].position);
+    return [{ id, name: CONFERENCE_NAMES[id] ?? conference.name ?? null, rows }];
+  });
+  return {
+    season: standings.children?.[0]?.standings?.seasonDisplayName ?? null,
+    note: null,
+    groups,
+  };
 }

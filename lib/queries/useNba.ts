@@ -205,6 +205,43 @@ export interface NbaMvpResponse {
   players: NbaMvpEntry[];
 }
 
+/** Tabeli rida. Liigal puuduv väli on null (NBA-l pole vormi ega koha muutust, EuroLeague'il GB-d ja seeriat). */
+export interface NbaStandingsRow {
+  position: number;
+  team: { id: string; abbreviation: string; name: string; logo: string | null };
+  wins: number;
+  losses: number;
+  /** Mänge liidrist maas: "3", "1.5", liidril "-". */
+  gamesBehind: string | null;
+  pointDiff: number | null;
+  /** Bilanss kodus ja võõrsil: "5-1". */
+  home: string | null;
+  away: string | null;
+  lastTen: string | null;
+  /** Seeria: "W3" võidud järjest, "L2" kaotused. */
+  streak: string | null;
+  /** Viimased mängud vanimast uusimani. */
+  form: ("W" | "L")[] | null;
+  /** Koha muutus eelmise vooruga võrreldes. */
+  change: "up" | "down" | null;
+}
+
+export interface NbaStandingsGroup {
+  id: string;
+  /** "Ida" / "Lääs"; ühe tabeliga liigal null. */
+  name: string | null;
+  rows: NbaStandingsRow[];
+}
+
+/** app/api/<liiga>/standings: põhiturniiri tabel (NBA kaks konverentsi, EuroLeague üks tabel). */
+export interface NbaStandingsResponse {
+  /** "2026-27" */
+  season: string | null;
+  /** Hooaja järel näidatav täpsustus, EuroLeague: "pärast 7. vooru". */
+  note: string | null;
+  groups: NbaStandingsGroup[];
+}
+
 // Kõik käivad läbi app/api/<liiga>/*: server kärbib vastused ja hoiab lõppenud mängud
 // vahemälus. keepPreviousData: ajavahemiku vahetusel jäävad vanad andmed tuhmilt näha,
 // kuni uued jõuavad.
@@ -267,5 +304,19 @@ export function useNbaMvpRace(league: League) {
     },
     // Hooaja keskmised muutuvad ainult mängude lõppedes; server hoiab neid tund aega.
     staleTime: 30 * 60 * 1000,
+  });
+}
+
+export function useNbaStandings(league: League) {
+  return useQuery({
+    queryKey: [league, "standings"],
+    queryFn: async ({ signal }): Promise<NbaStandingsResponse> => {
+      const res = await apiFetch(`/api/${league}/standings`, { signal });
+      if (!res.ok) throw new Error("Tabeli laadimine ebaõnnestus");
+      return res.json();
+    },
+    // Tabel muutub ainult mängude lõppedes; server hoiab seda 5 minutit.
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000,
   });
 }

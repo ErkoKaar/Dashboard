@@ -14,6 +14,8 @@ import type {
   NbaMvpResponse,
   NbaPeriod,
   NbaPlayerLine,
+  NbaStandingsResponse,
+  NbaStandingsRow,
   NbaTeamBox,
   NbaTeamSide,
 } from "@/lib/queries/useNba";
@@ -26,7 +28,10 @@ import { clubColor } from "./colors";
 
 const API = "https://feeds.incrowdsports.com/provider/euroleague-feeds";
 const COMPETITION = "E";
-const RECAP_CHANNEL_ID = "UCGr3nR_XH9r6E5b09ZJAT9w";
+// Mänguülevaated: eelistatud MAGENTA SPORT (Saksa ülekandja, ~4 min saksakeelse kommentaariga, aga
+// ainult umbes kolmandik mängudest), ülejäänutele ametlik EuroLeague'i kanal.
+const MAGENTA_CHANNEL_ID = "UChr7ZXDFiPOEl543HM4Aj8g";
+const EUROLEAGUE_CHANNEL_ID = "UCGr3nR_XH9r6E5b09ZJAT9w";
 const TALLINN = "Europe/Tallinn";
 // Mäng koos pausidega: alguse järel nii kaua "käimas", siis ilma tulemuseta "ootab tulemust".
 const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
@@ -125,6 +130,21 @@ interface ElPlayerStats {
     turnovers?: number;
     blocks?: number;
     pir?: number;
+  }[];
+}
+
+interface ElStandings {
+  teams?: {
+    position?: number;
+    positionChange?: string;
+    gamesWon?: number;
+    gamesLost?: number;
+    pointsDifference?: string;
+    homeRecord?: string;
+    awayRecord?: string;
+    lastTenRecord?: string;
+    last5Form?: string[];
+    club?: ElClub;
   }[];
 }
 
@@ -309,22 +329,35 @@ function toGame(game: ElGame, season: string, records: Records, now: number): Nb
 
 // --- Mänguülevaated YouTube'is ---
 
-// "Paris Basketball - Valencia Basket | R7 Basketball Highlights 2026-27", vahel ees hüüdlause
-// ("WHAT A GAME! | ..."). Klubinimedes on sponsorid ("Panathinaikos AKTOR"), skoori pole: sidumine
-// käib vooru ja klubinimede järgi.
-const RECAP_TITLE = /(?:^|\|\s*)([^|]+?)\s+-\s+([^|]+?)\s*\|\s*R(\d+)\s+Basketball Highlights/i;
+// MAGENTA SPORT: "Paris Basketball - Valencia Basket | EuroLeague | MAGENTA SPORT". Kodumeeskond ees,
+// vooru ega skoori pole, klubinimed saksa keeles ja sponsoritega ("Panathinaikos AKTOR Athen").
+// Mängijaportreed jm ("Duane Washington Jr. Profile | EuroLeague") jäävad välja, sest neis pole kahte klubi.
+const MAGENTA_TITLE = /^([^|]+?)\s+-\s+([^|]+?)\s*\|\s*EuroLeague\b/i;
+// EuroLeague: "Paris Basketball - Valencia Basket | R7 Basketball Highlights 2026-27", vahel ees
+// hüüdlause ("WHAT A GAME! | ...") ja vahel "R4 Highlights" ilma sõnata "Basketball". Voor on pealkirjas.
+const EUROLEAGUE_TITLE = /(?:^|\|\s*)([^|]+?)\s+-\s+([^|]+?)\s*\|\s*R(\d+)\s+(?:Basketball\s+)?Highlights/i;
+// Sama paar kohtub hooajal mitu korda: video peab ilmuma kolme päeva jooksul pärast mängu algust.
+const RECAP_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 const IGNORED_WORDS = new Set(["basket", "basketball", "club"]);
+// Saksakeelsed nimed, milles pole ühtki sõna EuroLeague'i nimest (klubi koodi järgi).
+const GERMAN_NAMES: Record<string, string[]> = {
+  MIL: ["mailand"], // "Armani Olimpia Mailand"
+  OLY: ["olympiakos"], // "Olympiakos Piräus"
+  RED: ["roter stern"], // "Roter Stern Meridianbet Belgrad"
+};
 
 const normalize = (text: string) =>
   text
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 
 function clubMatches(titleTeam: string, club: ElClub | undefined): boolean {
   if (!club) return false;
   const title = normalize(titleTeam);
-  const names = [club.abbreviatedName, club.editorialName, club.name].flatMap((name) => (name ? [normalize(name)] : []));
+  const names = [club.abbreviatedName, club.editorialName, club.name, ...(GERMAN_NAMES[club.code ?? ""] ?? [])].flatMap(
+    (name) => (name ? [normalize(name)] : []),
+  );
   if (names.some((name) => title.includes(name))) return true;
   // Sponsorinimi muudab pealkirja ("Hapoel IBI Tel Aviv" vs "Hapoel TLV"): klubi esimene sisukas sõna.
   const word = normalize(club.abbreviatedName ?? club.name ?? "")
@@ -333,19 +366,36 @@ function clubMatches(titleTeam: string, club: ElClub | undefined): boolean {
   return word !== undefined && title.includes(word);
 }
 
-function recapFinder(rounds: Map<string, ElGame>) {
+/** Pealkirjast kaks klubi ja voor (null, kui kanal vooru ei märgi). */
+type TitleParser = (title: string) => { first: string; second: string; round: number | null } | null;
+
+const parseMagentaTitle: TitleParser = (title) => {
+  const m = title.match(MAGENTA_TITLE);
+  return m ? { first: m[1], second: m[2], round: null } : null;
+};
+
+const parseEuroLeagueTitle: TitleParser = (title) => {
+  const m = title.match(EUROLEAGUE_TITLE);
+  return m ? { first: m[1], second: m[2], round: Number(m[3]) } : null;
+};
+
+function recapFinder(sources: Map<string, ElGame>, parse: TitleParser) {
   return (game: NbaGame, videos: RecapVideo[]): RecapVideo | undefined => {
-    const source = rounds.get(game.id);
+    const source = sources.get(game.id);
     if (!source) return undefined;
-    return videos.find((video) => {
-      const m = video.title.match(RECAP_TITLE);
-      if (!m || Number(m[3]) !== source.round) return false;
-      const [first, second] = [m[1], m[2]];
+    const start = Date.parse(game.startTime);
+    const matching = videos.filter((video) => {
+      if (Date.parse(video.publishedAt) - start > RECAP_WINDOW_MS) return false;
+      const parsed = parse(video.title);
+      if (!parsed || (parsed.round !== null && parsed.round !== source.round)) return false;
+      const { first, second } = parsed;
       return (
         (clubMatches(first, source.local?.club) && clubMatches(second, source.road?.club)) ||
         (clubMatches(first, source.road?.club) && clubMatches(second, source.local?.club))
       );
     });
+    // Varaseim sobiv: hilisem sama paari video kuulub järgmisele kohtumisele.
+    return matching.sort((a, b) => Date.parse(a.publishedAt) - Date.parse(b.publishedAt))[0];
   };
 }
 
@@ -384,9 +434,15 @@ export async function getGameDays(period: NbaPeriod): Promise<NbaGamesResponse> 
     if (next) days.push({ date: next, games: gamesOn(next) });
   }
 
-  const recaps = await getChannelVideos(RECAP_CHANNEL_ID, today);
-  days = attachRecaps(days, recaps.videos, recapFinder(sources));
-  return { today, days: recaps.apiKey ? await withDurations(days, recaps.apiKey) : days };
+  const [magenta, euroleague] = await Promise.all([
+    getChannelVideos(MAGENTA_CHANNEL_ID, today),
+    getChannelVideos(EUROLEAGUE_CHANNEL_ID, today),
+  ]);
+  // Teine kanal täidab ainult need mängud, millele esimesel videot polnud.
+  days = attachRecaps(days, magenta.videos, recapFinder(sources, parseMagentaTitle));
+  days = attachRecaps(days, euroleague.videos, recapFinder(sources, parseEuroLeagueTitle));
+  const apiKey = magenta.apiKey ?? euroleague.apiKey;
+  return { today, days: apiKey ? await withDurations(days, apiKey) : days };
 }
 
 // --- Boxscore ---
@@ -562,4 +618,54 @@ export async function getMvpRace(): Promise<NbaMvpResponse> {
 
   entries.sort((a, b) => b.eff - a.eff || b.pts - a.pts);
   return { season: seasonLabel(season), players: entries.slice(0, MVP_COUNT) };
+}
+
+// --- Tabel ---
+
+const STANDINGS_REVALIDATE = 300;
+
+/** Põhiturniiri ametlik tabel viimase mängitud vooru järgi (koha muutus on selle vooru mõju). */
+export async function getStandings(): Promise<NbaStandingsResponse> {
+  const season = currentSeason(new Date());
+  const games = await fetchSeasonGames(season);
+  const round = Math.max(0, ...games.filter((g) => g.played && g.phaseType?.code === "RS").map((g) => g.round ?? 0));
+  if (round === 0) return { season: seasonLabel(season), note: null, groups: [] };
+
+  const standings = await fetchJson<ElStandings>(
+    `${API}/v3/competitions/${COMPETITION}/seasons/${season}/rounds/${round}/basicstandings`,
+    { next: { revalidate: STANDINGS_REVALIDATE } },
+  );
+  const rows = (standings.teams ?? []).flatMap((team): NbaStandingsRow[] => {
+    const club = team.club;
+    if (!club?.code || typeof team.position !== "number") return [];
+    const diff = Number.parseInt(team.pointsDifference ?? "", 10);
+    const form = (team.last5Form ?? []).filter((result): result is "W" | "L" => result === "W" || result === "L");
+    return [
+      {
+        position: team.position,
+        team: {
+          id: club.code,
+          abbreviation: club.tvCode ?? club.code,
+          name: club.abbreviatedName ?? club.name ?? club.code,
+          logo: club.images?.crest ?? null,
+        },
+        wins: num(team.gamesWon),
+        losses: num(team.gamesLost),
+        gamesBehind: null,
+        pointDiff: Number.isFinite(diff) ? diff : null,
+        home: team.homeRecord ?? null,
+        away: team.awayRecord ?? null,
+        lastTen: team.lastTenRecord ?? null,
+        streak: null,
+        form: form.length > 0 ? form : null,
+        change: team.positionChange === "Up" ? "up" : team.positionChange === "Down" ? "down" : null,
+      },
+    ];
+  });
+  rows.sort((a, b) => a.position - b.position);
+  return {
+    season: seasonLabel(season),
+    note: `pärast ${round}. vooru`,
+    groups: rows.length > 0 ? [{ id: "RS", name: null, rows }] : [],
+  };
 }

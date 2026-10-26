@@ -6,13 +6,15 @@ import { NbaGamesCard } from "./nba/NbaGamesCard";
 import { NbaLeadersCard } from "./nba/NbaLeadersCard";
 import { NbaMvpRace } from "./nba/NbaMvpRace";
 import { RecapPlayerProvider } from "./nba/RecapPlayer";
+import { StandingsCard } from "./nba/StandingsCard";
 import { LeagueProvider } from "./nba/league";
 
-type View = "games" | "mvp";
+type View = "games" | "mvp" | "standings";
 
 const VIEWS: { id: View; label: string }[] = [
   { id: "games", label: "Mängud" },
   { id: "mvp", label: "MVP race" },
+  { id: "standings", label: "Tabel" },
 ];
 
 const PERIODS: { id: NbaPeriod; label: string }[] = [
@@ -50,8 +52,8 @@ function PeriodSwitch({ period, onChange }: { period: NbaPeriod; onChange: (peri
   );
 }
 
-// Kaks vaadet: mängud (ajavahemik juhib mängude ja parimate soorituste kaarti) ja MVP race
-// (alati terve hooaeg). Vaate nimed on suured display-sõnad, ajavahemik nende all teise taseme pill.
+// Kolm vaadet: mängud (ajavahemik juhib mängude ja parimate soorituste kaarti), MVP race ja tabel
+// (mõlemad alati terve hooaeg). Vaate nimed on suured display-sõnad, ajavahemik nende all teise taseme pill.
 // Sama vidin teenib NBA-d ja EuroLeague'i: liiga määrab andmeallika ja efektiivsuse nime.
 function BasketballWidget({ league }: { league: League }) {
   const [view, setView] = useState<View>("games");
@@ -91,8 +93,10 @@ function BasketballWidget({ league }: { league: League }) {
                 <NbaLeadersCard period={period} />
               </div>
             </div>
-          ) : (
+          ) : view === "mvp" ? (
             <NbaMvpRace />
+          ) : (
+            <StandingsCard />
           )}
         </div>
       </RecapPlayerProvider>

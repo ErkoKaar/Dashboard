@@ -1,7 +1,7 @@
 import { shiftDate } from "@/lib/date";
 import type { NbaGame, NbaGameDay } from "@/lib/queries/useNba";
 
-// Mänguülevaated YouTube'is (NBA: Motion Station, EuroLeague: EuroLeague'i kanal). Kanal ja
+// Mänguülevaated YouTube'is (NBA: Motion Station, EuroLeague: MAGENTA SPORT, varuks EuroLeague'i kanal). Kanal ja
 // pealkirja järgi sidumine tulevad liiga adapterilt; laadimine, RSS-varu ja kestused on ühised.
 
 const RECAP_REVALIDATE = 600;
@@ -140,6 +140,7 @@ async function fetchDurations(apiKey: string, ids: string[]): Promise<Map<string
 /**
  * Seob videod lõppenud mängudega. `find` on liiga reegel (pealkirja kuju); siin kontrollitakse
  * ainult, et video id on kehtiv ja video avaldati pärast mängu algust (sama paar kuu eest ei sobi).
+ * Juba videoga mäng jääb puutumata: teise kanali kutse täidab ainult puuduvad.
  */
 export function attachRecaps(
   days: NbaGameDay[],
@@ -150,7 +151,7 @@ export function attachRecaps(
   return days.map((day) => ({
     ...day,
     games: day.games.map((game) => {
-      if (!game.completed) return game;
+      if (!game.completed || game.youtube) return game;
       const after = valid.filter((video) => Date.parse(video.publishedAt) >= Date.parse(game.startTime));
       const found = find(game, after);
       if (!found) return game;

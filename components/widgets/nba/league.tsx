@@ -14,6 +14,7 @@ export interface LeagueConfig {
   /** Parimate soorituste allmärkuse lõpp (tühi = lisamärkust pole). */
   leadersNote: string;
   mvpNote: string;
+  standingsNote: string;
 }
 
 const CONFIGS: Record<League, LeagueConfig> = {
@@ -25,6 +26,8 @@ const CONFIGS: Record<League, LeagueConfig> = {
     leadersNote: "eelhooaja ja tähtede mänge mitte.",
     mvpNote:
       "Järjestus hooaja EFF järgi mängu kohta, ESPN-i kvalifitseerunud mängijad. Joon näitab EFF-i liidriga võrreldes. Ametlik NBA MVP edetabel on toimetuse hinnang ja võib sellest erineda.",
+    standingsNote:
+      "Kohad 1-6 pääsevad otse play-off'i, 7-10 play-in'i. GB: mänge liidrist maas. Seeria: V võidud, K kaotused järjest.",
   },
   euroleague: {
     id: "euroleague",
@@ -34,6 +37,8 @@ const CONFIGS: Record<League, LeagueConfig> = {
     leadersNote: "",
     mvpNote:
       "Järjestus hooaja PIR-i järgi mängu kohta, mängijad, kes on mänginud vähemalt pooltes hooaja mängudest. Joon näitab PIR-i liidriga võrreldes. Ametlik MVP valik võib sellest erineda.",
+    standingsNote:
+      "Kohad 1-6 pääsevad otse play-off'i, 7-10 play-in'i. Vorm: viimased 5 mängu, uusim paremal. Nool näitab koha muutust viimases voorus.",
   },
 };
 
