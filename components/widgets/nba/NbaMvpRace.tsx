@@ -257,7 +257,7 @@ export function NbaMvpRace() {
     body = (
       <div className="flex flex-col items-start gap-4">
         <div>
-          <p className="text-sm text-foreground">MVP race'i ei saanud laadida.</p>
+          <p className="text-sm text-foreground">MVP race&apos;i ei saanud laadida.</p>
           <p className="mt-1 text-xs text-muted">ESPN-i liides võis muutuda või on ajutiselt maas.</p>
         </div>
         <Button variant="ghost" onClick={() => refetch()} disabled={isFetching}>

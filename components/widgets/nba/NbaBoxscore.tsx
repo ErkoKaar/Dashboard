@@ -155,7 +155,7 @@ export function NbaBoxscore({ game }: { game: NbaGame }) {
 
   return (
     <div className="flex flex-wrap items-center gap-3 py-2">
-      <p className="text-sm text-muted">Boxscore'i ei saanud laadida.</p>
+      <p className="text-sm text-muted">Boxscore&apos;i ei saanud laadida.</p>
       <Button variant="ghost" onClick={() => refetch()} disabled={isFetching} className="!px-3 !py-1.5 text-xs">
         <RotateCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} aria-hidden />
         Proovi uuesti
