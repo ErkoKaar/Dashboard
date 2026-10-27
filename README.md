@@ -127,6 +127,20 @@ It works on a phone too, and installs as an app (PWA).
   <img src="docs/screenshots/mobile-taskmanager.png" alt="Taskmanager on a phone" width="30%">
 </p>
 
+### iPhone widget
+
+A large home screen widget shows today's tasks and habits with progress, the next calendar events and the weather. Tapping it opens the dashboard. iOS has no widgets for web apps, so the widget is a [Scriptable](https://scriptable.app) script that reads a read-only endpoint, `/api/widget`, protected by its own token.
+
+1. Create a token and set it as `DASHBOARD_WIDGET_TOKEN` in `.env.local` and in Vercel. Vercel also needs `TASKS_SUPABASE_SERVICE_ROLE_KEY`.
+
+   ```bash
+   openssl rand -hex 32 | pbcopy
+   ```
+
+2. Install Scriptable on the iPhone, create a new script and paste in [`scripts/scriptable/dashboard-widget.js`](scripts/scriptable/dashboard-widget.js).
+3. Run the script once in the app and enter the dashboard address and the token. Both stay in the phone's Keychain, not in the script.
+4. Add a large Scriptable widget to the home screen and pick the script. iOS refreshes it about every 15 to 30 minutes.
+
 ## How it works
 
 There is no separate backend. The browser reads and writes two Supabase projects directly, under Row Level Security. Everything that needs a secret key, or a site without CORS, goes through Next.js route handlers under `app/api`, which run on Vercel in Frankfurt (`fra1`).
@@ -186,9 +200,11 @@ flowchart LR
    | `NEXT_PUBLIC_FINANCE_SUPABASE_URL`, `_ANON_KEY` | FinanceTracker Supabase project |
    | `NEXT_PUBLIC_ESTHOOP_API_URL` | EstHoop backend; its CORS list must include this dashboard's origin |
    | `NEXT_PUBLIC_CHESS_USERNAME` | Chess.com username |
+   | `DASHBOARD_ALLOWED_USER_ID` | Server only, required: the one TaskManager user the API serves; without it every API request is refused |
    | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` | Server only: Google Calendar |
    | `YOUTUBE_API_KEY` | Server only, optional: recaps for the last 30 days instead of the RSS feed's last few |
    | `FINANCE_WIDGET_PIN` | Server only, optional: PIN lock for the Finance widget |
+   | `DASHBOARD_WIDGET_TOKEN`, `TASKS_SUPABASE_SERVICE_ROLE_KEY` | Server only, optional: the [iPhone widget](#iphone-widget) endpoint |
    | `NEXT_PUBLIC_DEMO_MODE` | `1` runs the demo with sample data and no keys |
 
 3. The tables come from the TaskZen and FinanceTracker projects. The dashboard's own additions are in [`supabase/`](supabase): run them in the TaskManager project's SQL Editor.
@@ -226,6 +242,7 @@ app/
                            games, boxscore, leaders, mvp, standings per league
     esthoop-club-*/        Club games of national team players
     finance-pin/           PIN check for the Finance widget
+    widget/                Read-only data for the iPhone widget (own token)
 components/
   widgets/                 One component per widget or view
   widgets/nba/             League views shared by NBA, EuroLeague and Est-Lat
@@ -236,12 +253,14 @@ lib/
                            Server-side league adapters to one shared shape
   basketball/              Shared league code: leaders, periods, YouTube recaps
   supabase/                The two Supabase clients
-  server/requireUser.ts    Session check for /api routes
+  server/requireUser.ts    Session and allowed-user check for /api routes
+  today.ts                 Today's tasks and habits, shared by the widgets and /api/widget
   demo/                    Demo mode: sample data and in-memory Supabase
   widgets.ts               Which widget belongs to which view
 providers/                 AuthProvider (two sessions), QueryProvider (cache persistence)
 middleware.ts              Content Security Policy with a per-request nonce
 supabase/                  SQL for the dashboard's own columns and tables
+scripts/scriptable/        iPhone home screen widget (Scriptable)
 docs/screenshots/          README images, taken from the demo
 ```
 

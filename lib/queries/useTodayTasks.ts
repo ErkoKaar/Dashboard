@@ -1,25 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getTasksClient } from "@/lib/supabase/tasksClient";
 import { todayDate } from "@/lib/date";
+import { combineTodayTasks, PROJECT_TASK_COLUMNS, TASK_COLUMNS, type TodayTask } from "@/lib/today";
 import {
   CALENDAR_EVENTS_KEY,
   CalendarEvent,
   fetchCalendarEvents,
 } from "@/lib/queries/useCalendarEvents";
 
-export interface TodayTask {
-  id: string;
-  title: string;
-  done: boolean;
-  project_task_id: string | null;
-  /**
-   * "task" = päevatask tasks-tabelist, "project_task" = projekti-task, mille due_date on see päev,
-   * "calendar" = taskiks märgitud Google Calendari sündmus (id on toimumiskorra id).
-   */
-  origin: "task" | "project_task" | "calendar";
-  /** Ainult project_task päritolul — mutatsioonid vajavad seda invalideerimiseks. */
-  projectId: string | null;
-}
+export type { TodayTask };
 
 export const TODAY_TASKS_KEY = ["today-tasks"];
 
@@ -42,12 +31,12 @@ export function useTodayTasks(date: string = todayDate()) {
       ] = await Promise.all([
         client
           .from("tasks")
-          .select("id, title, done, project_task_id, calendar_event_id")
+          .select(TASK_COLUMNS)
           .eq("date", date)
           .order("id", { ascending: true }),
         client
           .from("project_tasks")
-          .select("id, project_id, title, completed_at")
+          .select(PROJECT_TASK_COLUMNS)
           .eq("due_date", date)
           .order("sort_order", { ascending: true }),
         // Sama cache mis CalendarWidgetil. Kalendri viga ei tohi taske peita — siis lihtsalt ilma.
@@ -63,47 +52,7 @@ export function useTodayTasks(date: string = todayDate()) {
       if (error) throw error;
       if (projectError) throw projectError;
 
-      const dated: TodayTask[] = (projectTasks ?? []).map((t) => ({
-        id: t.id,
-        title: t.title,
-        done: t.completed_at !== null,
-        project_task_id: null,
-        origin: "project_task",
-        projectId: t.project_id,
-      }));
-
-      // Tehtud projekti-task peegeldatakse tasks-tabelisse (vt useToggleProjectTask).
-      // Kui tal on ka due_date, oleks ta nimekirjas kaks korda — peegelrida kukub välja.
-      const datedIds = new Set(dated.map((t) => t.id));
-      const plain: TodayTask[] = (tasks ?? [])
-        // Kalendri-taski read on ainult tehtud-olek, mitte eraldi taskid.
-        .filter((t) => !t.calendar_event_id)
-        .filter((t) => !t.project_task_id || !datedIds.has(t.project_task_id))
-        .map((t) => ({
-          id: t.id,
-          title: t.title,
-          done: t.done,
-          project_task_id: t.project_task_id,
-          origin: "task",
-          projectId: null,
-        }));
-
-      // Kalender pärib ainult jooksvat nädalat — teiste kuupäevade puhul jääb see tühjaks.
-      const doneCalendarIds = new Set(
-        (tasks ?? []).filter((t) => t.calendar_event_id && t.done).map((t) => t.calendar_event_id),
-      );
-      const calendar: TodayTask[] = calendarEvents
-        .filter((e) => e.isTask && e.date === date)
-        .map((e) => ({
-          id: e.id,
-          title: e.title,
-          done: doneCalendarIds.has(e.id),
-          project_task_id: null,
-          origin: "calendar",
-          projectId: null,
-        }));
-
-      return [...plain, ...calendar, ...dated];
+      return combineTodayTasks(date, tasks ?? [], projectTasks ?? [], calendarEvents);
     },
   });
 }
