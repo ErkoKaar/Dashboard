@@ -29,7 +29,19 @@ function config(): WidgetConfig | null {
   const serviceRoleKey = process.env.TASKS_SUPABASE_SERVICE_ROLE_KEY?.trim();
   const userId = process.env.DASHBOARD_ALLOWED_USER_ID?.trim();
   // Lühike token on sama hea kui puuduv: endpoint jääb kinni.
-  if (!token || token.length < MIN_TOKEN_LENGTH || !supabaseUrl || !serviceRoleKey || !userId) return null;
+  if (!token || token.length < MIN_TOKEN_LENGTH || !supabaseUrl || !serviceRoleKey || !userId) {
+    // Logisse ainult nimed, mitte väärtused; vastus kliendile jääb üldiseks.
+    const problems = [
+      !token
+        ? "DASHBOARD_WIDGET_TOKEN puudub"
+        : token.length < MIN_TOKEN_LENGTH && `DASHBOARD_WIDGET_TOKEN on lühem kui ${MIN_TOKEN_LENGTH} märki`,
+      !supabaseUrl && "NEXT_PUBLIC_TASKS_SUPABASE_URL puudub",
+      !serviceRoleKey && "TASKS_SUPABASE_SERVICE_ROLE_KEY puudub",
+      !userId && "DASHBOARD_ALLOWED_USER_ID puudub",
+    ].filter(Boolean);
+    console.error(`Vidina endpoint pole seadistatud: ${problems.join(", ")}`);
+    return null;
+  }
   return { token, supabaseUrl, serviceRoleKey, userId };
 }
 
@@ -86,10 +98,7 @@ export async function GET(request: Request) {
   if (IS_DEMO) return NextResponse.json({ error: "Demos pole saadaval" }, { status: 404 });
 
   const cfg = config();
-  if (!cfg) {
-    console.error("Vidina endpoint pole seadistatud (DASHBOARD_WIDGET_TOKEN, service role või kasutaja id puudub)");
-    return NextResponse.json({ error: "Server pole seadistatud" }, { status: 503 });
-  }
+  if (!cfg) return NextResponse.json({ error: "Server pole seadistatud" }, { status: 503 });
   if (!authorized(request, cfg.token)) return NextResponse.json({ error: "Vale token" }, { status: 401 });
 
   const today = tallinnToday();
