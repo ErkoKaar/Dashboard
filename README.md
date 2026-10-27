@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.png">
+    <img src="docs/logo-light.png" alt="Dashboard logo" width="132">
+  </picture>
+</p>
+
 <h1 align="center">Dashboard</h1>
 
 <p align="center">
