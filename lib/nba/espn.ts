@@ -450,10 +450,10 @@ interface EspnTeams {
 
 const round = (value: number, digits: number) => Math.round(value * 10 ** digits) / 10 ** digits;
 
-export async function getMvpRace(): Promise<NbaMvpResponse> {
+async function loadMvpRace(): Promise<NbaMvpResponse> {
   // Bilanss ja tiimivärv on lisainfo: nende viga ei tohi edetabelit maha võtta.
   const [stats, standings, teams] = await Promise.all([
-    fetchJson<EspnSeasonStats>(ESPN_SEASON_STATS, { next: { revalidate: MVP_REVALIDATE } }),
+    fetchJson<EspnSeasonStats>(ESPN_SEASON_STATS, { cache: "no-store" }),
     fetchJson<EspnStandings>(ESPN_STANDINGS, { next: { revalidate: MVP_REVALIDATE } }).catch(() => null),
     espnJson<EspnTeams>("/teams", { next: { revalidate: 86400 } }).catch(() => null),
   ]);
@@ -540,6 +540,12 @@ export async function getMvpRace(): Promise<NbaMvpResponse> {
   entries.sort((a, b) => b.eff - a.eff || b.pts - a.pts);
   return { season: stats.requestedSeason?.displayName ?? null, players: entries.slice(0, MVP_COUNT) };
 }
+
+/**
+ * ESPN-i hooaja statistika on ~4 MB ja Next'i andmevahemälu ei salvesta üle 2 MB vastuseid, nii et
+ * toores päring käiks igal MVP race'i avamisel uuesti. Vahemällu läheb valmis edetabel, tunniks.
+ */
+export const getMvpRace = unstable_cache(loadMvpRace, ["nba-mvp-race-v1"], { revalidate: MVP_REVALIDATE });
 
 // --- Tabel ---
 
