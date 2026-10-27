@@ -12,6 +12,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useCalendarEvents } from "@/lib/queries/useCalendarEvents";
 import { DashboardContext, WIDGET_REGISTRY } from "@/lib/widgets";
 import { getGreeting } from "@/lib/date";
+import { IS_DEMO } from "@/lib/demo/mode";
 import profilePhoto from "@/app/images/CVpilt.jpeg";
 
 const CONTEXTS: SideMenuItem<DashboardContext>[] = [
@@ -148,10 +149,21 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <Button variant="ghost" onClick={() => signOut()} className="ml-auto h-10 shrink-0 !rounded-full sm:ml-0">
-            <LogOut className="h-4 w-4" aria-hidden />
-            Logi välja
-          </Button>
+          {IS_DEMO ? (
+            // Demos väljalogimist pole; nupu kohal on viide koodile.
+            <a
+              href="https://github.com/ErkoKaar/Dashboard"
+              className="ml-auto inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm font-medium text-muted transition-colors duration-200 hover:border-white/20 hover:bg-white/[0.08] hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:ml-0"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
+              Demo · GitHub
+            </a>
+          ) : (
+            <Button variant="ghost" onClick={() => signOut()} className="ml-auto h-10 shrink-0 !rounded-full sm:ml-0">
+              <LogOut className="h-4 w-4" aria-hidden />
+              Logi välja
+            </Button>
+          )}
         </div>
 
         {/* Pilt tervituse rea keskel; subtiiter teises veerus, et algaks tervitusega samast servast. */}

@@ -4,6 +4,7 @@ import { Session } from "@supabase/supabase-js";
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
 import { getTasksClient } from "@/lib/supabase/tasksClient";
 import { getFinanceClient } from "@/lib/supabase/financeClient";
+import { DEMO_SESSION, IS_DEMO } from "@/lib/demo/mode";
 
 interface AuthContextValue {
   taskSession: Session | null;
@@ -15,7 +16,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   const [taskSession, setTaskSession] = useState<Session | null>(null);
   const [financeSession, setFinanceSession] = useState<Session | null>(null);
   const [taskLoaded, setTaskLoaded] = useState(false);
@@ -68,6 +69,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
+
+// Demos (lib/demo/mode.ts) on mõlemad sessioonid kohe olemas: login jääb vahele ja Supabase'i poole ei pöörduta.
+const DEMO_AUTH: AuthContextValue = {
+  taskSession: DEMO_SESSION,
+  financeSession: DEMO_SESSION,
+  loading: false,
+  signIn: async () => ({ error: null }),
+  signOut: async () => {},
+};
+
+function DemoAuthProvider({ children }: { children: ReactNode }) {
+  return <AuthContext.Provider value={DEMO_AUTH}>{children}</AuthContext.Provider>;
+}
+
+export const AuthProvider = IS_DEMO ? DemoAuthProvider : SupabaseAuthProvider;
 
 export function useAuth() {
   const ctx = useContext(AuthContext);

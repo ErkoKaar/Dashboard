@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { DEMO_PUBLIC_API, DEMO_USER_ID, IS_DEMO } from "@/lib/demo/mode";
 
 // Ainult serveris (app/api/*). Sisselogimine on muidu ainult brauseris, seega iga route
 // kontrollib ise, et päringu tegi kehtiva TaskManageri sessiooniga kasutaja.
@@ -74,6 +75,14 @@ function verify(token: string): Promise<string | null> {
  *   if (auth instanceof Response) return auth;
  */
 export async function requireUser(request: Request): Promise<{ userId: string } | Response> {
+  // Demos sisselogimist pole: avalikud spordiandmed on lahti, salajaste võtmetega route'id (kalender,
+  // GitHub, Spotify, summary, finance-pin) on kinni ka siis, kui võtmed peaksid demo projektis seatud olema.
+  if (IS_DEMO) {
+    return DEMO_PUBLIC_API.test(new URL(request.url).pathname)
+      ? { userId: DEMO_USER_ID }
+      : NextResponse.json({ error: "Demos pole saadaval" }, { status: 404 });
+  }
+
   const header = request.headers.get("authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   if (!token) return unauthorized();

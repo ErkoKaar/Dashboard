@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { IS_DEMO } from "@/lib/demo/mode";
 
 export interface EstHoopEvent {
   id: string;
@@ -20,6 +21,8 @@ export function useEstHoopGames() {
   return useQuery({
     queryKey: ["esthoop-games"],
     queryFn: async (): Promise<EstHoopGames> => {
+      // Demo projekt pole EstHoopi CORS-i loendis: koondise mängud tulevad avalike andmete tõmmisest.
+      if (IS_DEMO) return (await import("@/lib/demo/fixtures")).demoEstHoopGames();
       const baseUrl = process.env.NEXT_PUBLIC_ESTHOOP_API_URL;
       if (!baseUrl) throw new Error("NEXT_PUBLIC_ESTHOOP_API_URL puudub");
 
@@ -61,6 +64,7 @@ export function useEstHoopTopScorer() {
   return useQuery({
     queryKey: ["esthoop-top-scorer"],
     queryFn: async (): Promise<EstHoopTopScorer | null> => {
+      if (IS_DEMO) return (await import("@/lib/demo/fixtures")).DEMO_ESTHOOP_TOP_SCORER;
       const baseUrl = process.env.NEXT_PUBLIC_ESTHOOP_API_URL;
       if (!baseUrl) throw new Error("NEXT_PUBLIC_ESTHOOP_API_URL puudub");
 

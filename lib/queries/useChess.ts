@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { toDateString } from "@/lib/date";
+import { IS_DEMO } from "@/lib/demo/mode";
 
 const USERNAME = process.env.NEXT_PUBLIC_CHESS_USERNAME;
 
@@ -12,6 +13,7 @@ export function useChessStats() {
   return useQuery({
     queryKey: ["chess-stats"],
     queryFn: async (): Promise<ChessStats> => {
+      if (IS_DEMO) return (await import("@/lib/demo/fixtures")).DEMO_CHESS_STATS;
       if (!USERNAME) throw new Error("NEXT_PUBLIC_CHESS_USERNAME puudub");
 
       const res = await fetch(`https://api.chess.com/pub/player/${USERNAME}/stats`);
@@ -69,6 +71,7 @@ export function useChessTrend() {
   return useQuery({
     queryKey: ["chess-trend"],
     queryFn: async (): Promise<ChessTrendPoint[]> => {
+      if (IS_DEMO) return (await import("@/lib/demo/fixtures")).seedChessTrend();
       if (!USERNAME) throw new Error("NEXT_PUBLIC_CHESS_USERNAME puudub");
       const usernameLower = USERNAME.toLowerCase();
 

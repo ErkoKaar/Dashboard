@@ -1,4 +1,5 @@
 import { shiftDate } from "@/lib/date";
+import { IS_DEMO } from "@/lib/demo/mode";
 import type { NbaGame, NbaGameDay } from "@/lib/queries/useNba";
 
 // Mänguülevaated YouTube'is (NBA: Motion Station, EuroLeague: MAGENTA SPORT, varuks EuroLeague'i kanal). Kanal ja
@@ -89,7 +90,8 @@ export async function getChannelVideos(
   channelId: string,
   today: string,
 ): Promise<{ videos: RecapVideo[]; apiKey: string | null }> {
-  const apiKey = process.env.YOUTUBE_API_KEY?.trim();
+  // Avalik demo ei kasuta võtit ka siis, kui see peaks projektis seatud olema: ainult RSS.
+  const apiKey = IS_DEMO ? undefined : process.env.YOUTUBE_API_KEY?.trim();
   if (apiKey) {
     try {
       const since = Date.parse(`${shiftDate(today, -RECAP_LOOKBACK_DAYS)}T00:00:00Z`);
