@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { Bricolage_Grotesque } from "next/font/google";
 import { QueryProvider } from "@/providers/QueryProvider";
@@ -29,6 +29,13 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Dashboard",
   description: "Personal dashboard aggregating Finance, Tasks, EstHoop and GitHub data.",
+  // "black", mitte "black-translucent": viimane paneks sisu iPhone'i staatusriba alla
+  // ja vajaks safe-area padding'ut.
+  appleWebApp: { capable: true, title: "Dashboard", statusBarStyle: "black" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#05090c",
 };
 
 export default function RootLayout({

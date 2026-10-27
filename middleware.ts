@@ -60,7 +60,8 @@ export const config = {
   matcher: [
     {
       // Ainult lehed: mitte API, staatilised failid ega prefetch-päringud.
-      source: "/((?!api|_next/static|_next/image|favicon.ico|icon.png).*)",
+      source:
+        "/((?!api|_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|manifest.webmanifest|icons/).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

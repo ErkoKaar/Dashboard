@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Lehe metadata (manifest, apple-mobile-web-app-*) peab olema <head>-is: Next 15 striimib dünaamilise
+  // lehe metadata muidu <body>-sse ja Chrome ei leia sealt manifesti (PWA pole installitav). /.*/ = kõigile.
+  htmlLimitedBots: /.*/,
   // Korvpallivaadete mängijapildid ja logod käivad läbi Next'i pildioptimeerija, mis teeb neist WebP-i
   // (components/widgets/nba/media.tsx resizedImage): ESPN-i PNG ~220 KB -> ~30 KB, EuroLeague ~450 KB -> ~50 KB.
   // Est-Lat liiga fotod samuti: brauser eemaldab nende valge tausta lõuendil ja see töötab ainult oma
