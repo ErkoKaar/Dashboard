@@ -87,8 +87,18 @@ export async function requireUser(request: Request): Promise<{ userId: string } 
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   if (!token) return unauthorized();
 
+  // Dashboard on ühe inimese oma: kehtivast sessioonist ei piisa, kasutaja peab olema
+  // DASHBOARD_ALLOWED_USER_ID (TaskManageri Supabase'i kasutaja id). Muutuja puudumisel ei lasta kedagi
+  // läbi, et unustatud seadistus ei avaks kalendrit, Spotify't, Anthropicut ja GitHubi igale kasutajale.
+  const allowedUserId = process.env.DASHBOARD_ALLOWED_USER_ID?.trim();
+  if (!allowedUserId) {
+    console.error("DASHBOARD_ALLOWED_USER_ID puudub: kõik API päringud lükatakse tagasi");
+    return NextResponse.json({ error: "Server pole seadistatud" }, { status: 503 });
+  }
+
   const userId = await verify(token);
   if (!userId) return unauthorized();
+  if (userId !== allowedUserId) return NextResponse.json({ error: "Ligipääs puudub" }, { status: 403 });
   return { userId };
 }
 
