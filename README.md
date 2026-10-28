@@ -129,7 +129,7 @@ It works on a phone too, and installs as an app (PWA).
 
 ### iPhone widget
 
-A large home screen widget shows today's tasks and habits with progress, the next calendar event and the weather. Tapping it opens the dashboard web app from the home screen instead of Safari, so add the dashboard to the home screen first. iOS has no widgets for web apps, so the widget is a [Scriptable](https://scriptable.app) script that reads a read-only endpoint, `/api/widget`, protected by its own token.
+A large home screen widget shows today's tasks and habits with progress, the next calendar event and the weather. Tapping it opens the dashboard web app from the home screen instead of Safari, through a Shortcuts shortcut. iOS has no widgets for web apps, so the widget is a [Scriptable](https://scriptable.app) script that reads a read-only endpoint, `/api/widget`, protected by its own token.
 
 1. Create a token and set it as `DASHBOARD_WIDGET_TOKEN` in `.env.local` and in Vercel. Vercel also needs `TASKS_SUPABASE_SERVICE_ROLE_KEY`.
 
@@ -139,7 +139,8 @@ A large home screen widget shows today's tasks and habits with progress, the nex
 
 2. Install Scriptable on the iPhone, create a new script and paste in [`scripts/scriptable/dashboard-widget.js`](scripts/scriptable/dashboard-widget.js).
 3. Run the script once in the app and enter the dashboard address and the token. Both stay in the phone's Keychain, not in the script.
-4. Add a large Scriptable widget to the home screen and pick the script. iOS refreshes it about every 15 to 30 minutes.
+4. Add the dashboard to the home screen as a web app. Then, in Shortcuts, create a shortcut named `Ava Dashboard` with one action, Open URLs, set to `webapp://<dashboard host>/` (no `https://`, with the trailing slash). Scriptable can't open `webapp://` links itself, so the widget runs this shortcut.
+5. Add a large Scriptable widget to the home screen and pick the script. iOS refreshes it about every 15 to 30 minutes.
 
 ## How it works
 

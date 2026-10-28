@@ -12,6 +12,9 @@ const KEY_URL = "dashboard-widget-url";
 const KEY_TOKEN = "dashboard-widget-token";
 const CACHE_FILE = "dashboard-widget.json";
 const REFRESH_MINUTES = 15;
+// Vidinale vajutades käivitub see Shortcutsi otsetee (Open URLs webapp://<aadress>/), mis avab avakuvale
+// lisatud dashboardi veebiäpi. Scriptable ise webapp:// aadressi avada ei saa.
+const OPEN_SHORTCUT = "Ava Dashboard";
 const LIST_ROWS = 4;
 // Kui habiteid on teha, saavad taskid nimekirjas kuni nii mitu rida ja ülejäänud jäävad habititele.
 const TASK_ROWS_WITH_HABITS = 2;
@@ -363,12 +366,6 @@ function addAllDone(widget, data) {
   widget.addSpacer();
 }
 
-// Avakuvale lisatud dashboardi veebiäpp avaneb webapp:// aadressiga Safari asemel. Kuju on telefonis
-// proovitud: aadress ilma https://-ita ja kaldkriipsuga lõpus.
-function webAppUrl(url) {
-  return `webapp://${url.replace(/^https:\/\//, "")}/`;
-}
-
 function background(top) {
   const gradient = new LinearGradient();
   gradient.colors = [top, COLORS.bottom];
@@ -379,7 +376,7 @@ function background(top) {
 function buildWidget({ data, stale, error }) {
   const widget = new ListWidget();
   widget.setPadding(16, 16, 16, 16);
-  widget.url = webAppUrl(Keychain.get(KEY_URL));
+  widget.url = `shortcuts://run-shortcut?name=${encodeURIComponent(OPEN_SHORTCUT)}`;
   widget.refreshAfterDate = new Date(Date.now() + REFRESH_MINUTES * 60 * 1000);
 
   if (!data) {
