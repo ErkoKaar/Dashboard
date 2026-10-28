@@ -57,7 +57,8 @@ function PeriodSwitch({ period, onChange }: { period: NbaPeriod; onChange: (peri
 // Sama vidin teenib NBA-d, EuroLeague'i ja Est-Lat liigat: liiga määrab andmeallika ja efektiivsuse nime.
 function BasketballWidget({ league }: { league: League }) {
   const [view, setView] = useState<View>("games");
-  const [period, setPeriod] = useState<NbaPeriod>("today");
+  // 3 päeva: hommikul on ka eilsed õhtused mängud näha (EuroLeague'i "Täna" on Eesti kuupäeva järgi).
+  const [period, setPeriod] = useState<NbaPeriod>("3d");
 
   return (
     <LeagueProvider league={league}>
