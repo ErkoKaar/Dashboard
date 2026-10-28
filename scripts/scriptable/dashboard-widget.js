@@ -363,6 +363,12 @@ function addAllDone(widget, data) {
   widget.addSpacer();
 }
 
+// Avakuvale lisatud dashboardi veebiäpp avaneb webapp:// aadressiga Safari asemel. Kuju on telefonis
+// proovitud: aadress ilma https://-ita ja kaldkriipsuga lõpus.
+function webAppUrl(url) {
+  return `webapp://${url.replace(/^https:\/\//, "")}/`;
+}
+
 function background(top) {
   const gradient = new LinearGradient();
   gradient.colors = [top, COLORS.bottom];
@@ -373,7 +379,7 @@ function background(top) {
 function buildWidget({ data, stale, error }) {
   const widget = new ListWidget();
   widget.setPadding(16, 16, 16, 16);
-  widget.url = Keychain.get(KEY_URL);
+  widget.url = webAppUrl(Keychain.get(KEY_URL));
   widget.refreshAfterDate = new Date(Date.now() + REFRESH_MINUTES * 60 * 1000);
 
   if (!data) {
