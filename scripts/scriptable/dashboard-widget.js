@@ -13,6 +13,8 @@ const KEY_TOKEN = "dashboard-widget-token";
 const CACHE_FILE = "dashboard-widget.json";
 const REFRESH_MINUTES = 15;
 const LIST_ROWS = 4;
+// Kui habiteid on teha, saavad taskid nimekirjas kuni nii mitu rida ja ülejäänud jäävad habititele.
+const TASK_ROWS_WITH_HABITS = 2;
 const LOGO_SIZE = 20;
 const RING_SIZE = 96;
 const DONE_RING_SIZE = 118;
@@ -264,23 +266,26 @@ function addHero(widget, data) {
   row.addSpacer();
 }
 
-// Järgmised asjad: tegemata taskid (türkiis ring), siis tegemata habitid (valge ruut).
+// Järgmised asjad: tegemata taskid (türkiis ring), siis suuremalt tegemata habitid (valge ruut).
 function addNextUp(widget, data) {
-  const items = [
-    ...data.tasks.open.map((title) => ({ title, symbol: "circle", color: COLORS.task })),
-    ...data.habits.open.map((title) => ({ title, symbol: "app", color: COLORS.habit })),
-  ];
-  if (items.length === 0) {
+  const { tasks, habits } = data;
+  if (tasks.open.length + habits.open.length === 0) {
     addText(widget, "Tänaseks pole midagi plaanis", 14, COLORS.muted);
     return;
   }
-  const shown = items.slice(0, LIST_ROWS);
+  const habitRows = Math.min(habits.open.length, LIST_ROWS - Math.min(tasks.open.length, TASK_ROWS_WITH_HABITS));
+  const taskRows = Math.min(tasks.open.length, LIST_ROWS - habitRows);
+  // Teksti algus on mõlemal 20 pt kaugusel, kuigi habiti ikoon on suurem.
+  const shown = [
+    ...tasks.open.slice(0, taskRows).map((title) => ({ title, symbol: "circle", icon: 12, text: 14, weight: "regular", color: COLORS.task })),
+    ...habits.open.slice(0, habitRows).map((title) => ({ title, symbol: "app", icon: 14, text: 16, weight: "medium", color: COLORS.habit })),
+  ];
   for (const item of shown) {
     const row = widget.addStack();
     row.centerAlignContent();
-    addSymbol(row, item.symbol, 12, item.color);
-    row.addSpacer(8);
-    addText(row, item.title, 14, COLORS.foreground);
+    addSymbol(row, item.symbol, item.icon, item.color);
+    row.addSpacer(20 - item.icon);
+    addText(row, item.title, item.text, COLORS.foreground, item.weight);
     widget.addSpacer(5);
   }
   // Arv tuleb loenduritest, sest endpoint saadab nimesid kuni 8.
@@ -293,29 +298,47 @@ function addNextUp(widget, data) {
   }
 }
 
-// Kalendririba: järgmine kellaajaline sündmus (või terve päeva oma), paremal ülejäänute arv.
-function addEventStrip(widget, events) {
+function formatDate(date, pattern) {
+  const format = new DateFormatter();
+  format.locale = "et";
+  format.dateFormat = pattern;
+  return format.string(date);
+}
+
+// "14:00" täna, "Homme 09:00", edasi nädalapäevaga ("Reede 14:00"); terve päeva sündmusel ainult päev.
+function eventLabel(event, today) {
+  const noon = (date) => new Date(`${date}T12:00:00`);
+  const tomorrow = noon(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const day =
+    event.date === today
+      ? "Täna"
+      : event.date === formatDate(tomorrow, "yyyy-MM-dd")
+        ? "Homme"
+        : capitalize(formatDate(noon(event.date), "EEEE"));
+  if (event.allDay) return day;
+  return event.date === today ? event.time : `${day} ${event.time}`;
+}
+
+// Kalendririba: ainult järgmine sündmus, ka tulevastest päevadest.
+function addEventStrip(widget, data) {
   const strip = widget.addStack();
   strip.centerAlignContent();
   strip.backgroundColor = COLORS.surface;
   strip.cornerRadius = 12;
   strip.setPadding(9, 12, 9, 12);
-  if (!events || events.length === 0) {
+  const event = data.nextEvent;
+  if (!event) {
     addSymbol(strip, "calendar", 13, COLORS.muted);
     strip.addSpacer(8);
-    addText(strip, events ? "Täna rohkem sündmusi pole" : "Kalender pole saadaval", 13, COLORS.muted);
+    addText(strip, data.calendarError ? "Kalender pole saadaval" : "Lähipäevil sündmusi pole", 13, COLORS.muted);
     strip.addSpacer();
     return;
   }
-  const next = events.find((event) => !event.allDay) ?? events[0];
-  addText(strip, next.allDay ? "Täna" : next.time, 14, COLORS.task, "semibold", true);
+  addText(strip, eventLabel(event, data.date), 14, COLORS.task, "semibold", true);
   strip.addSpacer(10);
-  addText(strip, next.title, 14, COLORS.foreground, "medium");
+  addText(strip, event.title, 14, COLORS.foreground, "medium");
   strip.addSpacer();
-  if (events.length > 1) {
-    strip.addSpacer(8);
-    addText(strip, `+${events.length - 1}`, 13, COLORS.muted, "medium", true);
-  }
 }
 
 function doneSummary(tasks, habits) {
@@ -383,7 +406,7 @@ function buildWidget({ data, stale, error }) {
     addNextUp(widget, data);
     widget.addSpacer();
   }
-  addEventStrip(widget, data.events);
+  addEventStrip(widget, data);
   return widget;
 }
 

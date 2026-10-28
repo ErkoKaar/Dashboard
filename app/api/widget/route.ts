@@ -7,13 +7,13 @@ import { calendarConfigured, CalendarEvent, fetchCalendarEvents, TIMEZONE } from
 import { combineTodayTasks, groupTodayHabits, HABIT_COLUMNS, PROJECT_TASK_COLUMNS, TASK_COLUMNS } from "@/lib/today";
 
 // iPhone'i avakuva vidin (Scriptable, scripts/scriptable/dashboard-widget.js): tänased taskid, habitid,
-// kalender ja ilm ühe kompaktse JSON-ina. Vidin ei saa Supabase'i sessiooni kasutada, seega käib ligipääs
+// järgmine kalendrisündmus ja ilm ühe kompaktse JSON-ina. Vidin ei saa Supabase'i sessiooni kasutada, seega käib ligipääs
 // eraldi tokeniga (DASHBOARD_WIDGET_TOKEN) ja andmed loetakse service role võtmega, alati ainult
 // DASHBOARD_ALLOWED_USER_ID ridadest. Ainult lugemine.
 
 const MIN_TOKEN_LENGTH = 32;
 const OPEN_LIMIT = 8;
-const EVENT_LIMIT = 5;
+const NEXT_EVENT_DAYS = 7;
 const TALLINN = { latitude: 59.437, longitude: 24.7536 };
 
 interface WidgetConfig {
@@ -65,12 +65,17 @@ function tallinnToday(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE }).format(new Date());
 }
 
-/** Tänased sündmused; aken on päev mõlemalt poolt laiem, sest Google'i kuupäev on kalendri ajavööndis. */
-async function todayEvents(today: string): Promise<CalendarEvent[] | null> {
+/**
+ * Sündmused tänasest NEXT_EVENT_DAYS päeva ette (tänased taskide jaoks, edasised järgmise sündmuse jaoks).
+ * Aken algab päev varem, sest Google'i kuupäev on kalendri ajavööndis.
+ */
+async function upcomingEvents(today: string): Promise<CalendarEvent[] | null> {
   if (!calendarConfigured()) return null;
   try {
-    const events = await fetchCalendarEvents(`${shiftDate(today, -1)}T00:00:00Z`, `${shiftDate(today, 2)}T00:00:00Z`);
-    return events.filter((e) => e.date === today);
+    return await fetchCalendarEvents(
+      `${shiftDate(today, -1)}T00:00:00Z`,
+      `${shiftDate(today, NEXT_EVENT_DAYS + 1)}T00:00:00Z`,
+    );
   } catch {
     return null;
   }
@@ -113,7 +118,7 @@ export async function GET(request: Request) {
       .order("sort_order"),
     client.from("habits").select(HABIT_COLUMNS).eq("user_id", cfg.userId).is("archived_at", null).order("id"),
     client.from("habit_logs").select("habit_id").eq("user_id", cfg.userId).eq("date", today),
-    todayEvents(today),
+    upcomingEvents(today),
     weather(),
   ]);
 
@@ -123,16 +128,20 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Andmete lugemine ebaõnnestus" }, { status: 502 });
   }
 
-  const todayTasks = combineTodayTasks(today, tasks.data ?? [], projectTasks.data ?? [], events ?? []);
+  const todayTasks = combineTodayTasks(
+    today,
+    tasks.data ?? [],
+    projectTasks.data ?? [],
+    (events ?? []).filter((e) => e.date === today),
+  );
   const todayHabits = groupTodayHabits(habits.data ?? [], new Set((logs.data ?? []).map((log) => log.habit_id)));
 
+  // Google annab sündmused alguse järjekorras. Taskiks märgitud sündmused on taskide all, läbi saanud
+  // sündmusi ei näidata ja tänane terve päeva sündmus ei peida järgmist kellaajalist.
   const now = Date.now();
-  const upcoming = (events ?? [])
-    // Taskiks märgitud sündmused on juba taskide all; läbi saanud sündmusi ei näidata.
-    .filter((e) => !e.isTask && (e.allDay || !e.end || Date.parse(e.end) > now))
-    .sort((a, b) => Number(b.allDay) - Number(a.allDay) || (a.time ?? "").localeCompare(b.time ?? ""))
-    .slice(0, EVENT_LIMIT)
-    .map((e) => ({ time: e.time, title: e.title, allDay: e.allDay }));
+  const next = (events ?? []).find(
+    (e) => !e.isTask && e.date >= today && (e.allDay ? e.date > today : !e.end || Date.parse(e.end) > now),
+  );
 
   return NextResponse.json(
     {
@@ -154,8 +163,9 @@ export async function GET(request: Request) {
               : h.name,
           ),
       },
-      // null = kalender pole saadaval (vidin ütleb seda), [] = tänaseks rohkem sündmusi pole.
-      events: events === null ? null : upcoming,
+      // null = NEXT_EVENT_DAYS päeva jooksul sündmusi pole; calendarError = kalendrit ei saanud lugeda.
+      nextEvent: next ? { date: next.date, time: next.time, title: next.title, allDay: next.allDay } : null,
+      calendarError: events === null,
       weather: weatherNow,
       generatedAt: new Date(now).toISOString(),
     },

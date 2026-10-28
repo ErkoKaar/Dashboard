@@ -129,7 +129,7 @@ It works on a phone too, and installs as an app (PWA).
 
 ### iPhone widget
 
-A large home screen widget shows today's tasks and habits with progress, the next calendar events and the weather. Tapping it opens the dashboard. iOS has no widgets for web apps, so the widget is a [Scriptable](https://scriptable.app) script that reads a read-only endpoint, `/api/widget`, protected by its own token.
+A large home screen widget shows today's tasks and habits with progress, the next calendar event and the weather. Tapping it opens the dashboard. iOS has no widgets for web apps, so the widget is a [Scriptable](https://scriptable.app) script that reads a read-only endpoint, `/api/widget`, protected by its own token.
 
 1. Create a token and set it as `DASHBOARD_WIDGET_TOKEN` in `.env.local` and in Vercel. Vercel also needs `TASKS_SUPABASE_SERVICE_ROLE_KEY`.
 
