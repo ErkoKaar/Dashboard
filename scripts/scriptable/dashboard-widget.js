@@ -16,8 +16,6 @@ const REFRESH_MINUTES = 15;
 // lisatud dashboardi veebiäpi. Scriptable ise webapp:// aadressi avada ei saa.
 const OPEN_SHORTCUT = "Ava Dashboard";
 const LIST_ROWS = 4;
-// Kui habiteid on teha, saavad taskid nimekirjas kuni nii mitu rida ja ülejäänud jäävad habititele.
-const TASK_ROWS_WITH_HABITS = 2;
 const LOGO_SIZE = 20;
 const RING_SIZE = 96;
 const DONE_RING_SIZE = 118;
@@ -269,34 +267,30 @@ function addHero(widget, data) {
   row.addSpacer();
 }
 
-// Järgmised asjad: tegemata taskid (türkiis ring), siis suuremalt tegemata habitid (valge ruut).
-function addNextUp(widget, data) {
-  const { tasks, habits } = data;
-  if (tasks.open.length + habits.open.length === 0) {
-    addText(widget, "Tänaseks pole midagi plaanis", 14, COLORS.muted);
+// Tegemata habitid (valge ruut). Taskid on ainult rõngas ja loenduris.
+function addOpenHabits(widget, habits) {
+  if (habits.total === 0) {
+    addText(widget, "Aktiivseid habiteid pole", 14, COLORS.muted);
     return;
   }
-  const habitRows = Math.min(habits.open.length, LIST_ROWS - Math.min(tasks.open.length, TASK_ROWS_WITH_HABITS));
-  const taskRows = Math.min(tasks.open.length, LIST_ROWS - habitRows);
-  // Teksti algus on mõlemal 20 pt kaugusel, kuigi habiti ikoon on suurem.
-  const shown = [
-    ...tasks.open.slice(0, taskRows).map((title) => ({ title, symbol: "circle", icon: 12, text: 14, weight: "regular", color: COLORS.task })),
-    ...habits.open.slice(0, habitRows).map((title) => ({ title, symbol: "app", icon: 14, text: 16, weight: "medium", color: COLORS.habit })),
-  ];
-  for (const item of shown) {
+  if (habits.done === habits.total) {
+    addText(widget, "Habitid tehtud", 16, COLORS.task, "medium");
+    return;
+  }
+  const shown = habits.open.slice(0, LIST_ROWS);
+  for (const title of shown) {
     const row = widget.addStack();
     row.centerAlignContent();
-    addSymbol(row, item.symbol, item.icon, item.color);
-    row.addSpacer(20 - item.icon);
-    addText(row, item.title, item.text, COLORS.foreground, item.weight);
+    addSymbol(row, "app", 14, COLORS.habit);
+    row.addSpacer(8);
+    addText(row, title, 16, COLORS.foreground, "medium");
     widget.addSpacer(5);
   }
-  // Arv tuleb loenduritest, sest endpoint saadab nimesid kuni 8.
-  const open = data.tasks.total - data.tasks.done + (data.habits.total - data.habits.done);
-  const more = open - shown.length;
+  // Arv tuleb loendurist, sest endpoint saadab nimesid kuni 8.
+  const more = habits.total - habits.done - shown.length;
   if (more > 0) {
     const row = widget.addStack();
-    row.addSpacer(20);
+    row.addSpacer(22);
     addText(row, `+${more} veel`, 12, COLORS.muted, "medium");
   }
 }
@@ -406,7 +400,7 @@ function buildWidget({ data, stale, error }) {
     widget.addSpacer(14);
     addHero(widget, data);
     widget.addSpacer(14);
-    addNextUp(widget, data);
+    addOpenHabits(widget, data.habits);
     widget.addSpacer();
   }
   addEventStrip(widget, data);
