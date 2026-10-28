@@ -3,7 +3,8 @@ import { IS_DEMO } from "@/lib/demo/mode";
 import type { NbaGame, NbaGameDay } from "@/lib/queries/useNba";
 
 // Mänguülevaated YouTube'is (NBA: Motion Station, EuroLeague: MAGENTA SPORT, varuks EuroLeague'i kanal). Kanal ja
-// pealkirja järgi sidumine tulevad liiga adapterilt; laadimine, RSS-varu ja kestused on ühised.
+// pealkirja järgi sidumine tulevad liiga adapterilt; laadimine, RSS-varu, Eestis vaadatavuse kontroll ja
+// kestused on ühised.
 
 const RECAP_REVALIDATE = 600;
 // Pikim vahemik on 30 päeva; üks päev varu, sest video ilmub järgmisel päeval (UTC). Hooaja
@@ -13,6 +14,9 @@ const RECAP_LOOKBACK_DAYS = 31;
 const RECAP_MAX_PAGES = 12;
 const YOUTUBE_API = "https://www.googleapis.com/youtube/v3";
 const VIDEO_ID = /^[\w-]{11}$/;
+// Vaataja riik, mitte serveri oma (Frankfurt): MAGENTA SPORT lubab osa videoid ainult Saksamaal.
+const VIEWER_COUNTRY = "EE";
+const AVAILABILITY_REVALIDATE = 3600;
 
 export interface RecapVideo {
   id: string;
@@ -57,6 +61,47 @@ async function fetchRecapVideosApi(channelId: string, apiKey: string, since: num
   return videos;
 }
 
+/**
+ * Jätab välja videod, mida Eestis vaadata või videoaknas näidata ei saa (piirkonnapiirang, embed
+ * keelatud), et mäng saaks recap'i järgmiselt kanalilt. Kontroll on lisainfo: vea korral jäävad
+ * kontrollimata videod alles.
+ */
+async function playableVideos(videos: RecapVideo[], apiKey: string): Promise<RecapVideo[]> {
+  const unplayable = new Set<string>();
+  for (let i = 0; i < videos.length; i += 50) {
+    const params = new URLSearchParams({
+      part: "contentDetails,status",
+      id: videos
+        .slice(i, i + 50)
+        .map((video) => video.id)
+        .join(","),
+    });
+    try {
+      const res = await fetch(`${YOUTUBE_API}/videos?${params}`, {
+        headers: { "X-Goog-Api-Key": apiKey },
+        next: { revalidate: AVAILABILITY_REVALIDATE },
+      });
+      if (!res.ok) break;
+      const json = (await res.json()) as {
+        items?: {
+          id?: string;
+          contentDetails?: { regionRestriction?: { allowed?: string[]; blocked?: string[] } };
+          status?: { embeddable?: boolean };
+        }[];
+      };
+      for (const item of json.items ?? []) {
+        const region = item.contentDetails?.regionRestriction;
+        const blocked =
+          region?.blocked?.includes(VIEWER_COUNTRY) || (region?.allowed !== undefined && !region.allowed.includes(VIEWER_COUNTRY));
+        if (item.id && (blocked || item.status?.embeddable === false)) unplayable.add(item.id);
+      }
+    } catch {
+      break;
+    }
+  }
+  return videos.filter((video) => !unplayable.has(video.id));
+}
+
 function decodeXml(text: string): string {
   return text
     .replace(/&lt;/g, "<")
@@ -95,7 +140,8 @@ export async function getChannelVideos(
   if (apiKey) {
     try {
       const since = Date.parse(`${shiftDate(today, -RECAP_LOOKBACK_DAYS)}T00:00:00Z`);
-      return { videos: await fetchRecapVideosApi(channelId, apiKey, since), apiKey };
+      const videos = await fetchRecapVideosApi(channelId, apiKey, since);
+      return { videos: await playableVideos(videos, apiKey), apiKey };
     } catch {
       // langeb RSS-ile
     }
