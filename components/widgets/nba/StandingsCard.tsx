@@ -11,8 +11,8 @@ import { LeagueConfig, useLeague } from "./league";
 import { TeamLogo } from "./media";
 
 // Põhiturniiri tabel. Tsoonid tulevad liigalt (NBA ja EuroLeague: 1-6 play-off, 7-10 play-in; Est-Lat:
-// 1-8 play-off): täisjoon play-off'i ja katkendjoon play-in'i piiril, kohanumbri heledus kordab sama
-// tsooni. NBA-l kaks konverentsi kõrvuti.
+// 1-8 play-off; Europe Cup: 1-2 edasi): täisjoon play-off'i ja katkendjoon play-in'i piiril, kohanumbri
+// heledus kordab sama tsooni. NBA-l kaks konverentsi kõrvuti, Europe Cupis Eesti klubide grupid.
 
 type Zones = LeagueConfig["standingsZones"];
 
@@ -93,6 +93,12 @@ const COLUMNS: Record<League, Column[]> = {
     { label: "+/-", title: "Punktide vahe", value: (r) => signed(r.pointDiff) },
     HOME,
     AWAY,
+    { label: "Vorm", title: "Viimased 5 mängu, uusim paremal", value: (r) => <Form form={r.form} /> },
+  ],
+  // Kuni kolm 6 tiimiga gruppi kahes veerus: kitsas tabel, kodus/võõrsil bilanssi pole.
+  europecup: [
+    RECORD,
+    { label: "+/-", title: "Punktide vahe", value: (r) => signed(r.pointDiff) },
     { label: "Vorm", title: "Viimased 5 mängu, uusim paremal", value: (r) => <Form form={r.form} /> },
   ],
 };
@@ -192,6 +198,9 @@ function StandingsTable({ group, league, zones }: { group: NbaStandingsGroup; le
   );
 }
 
+// Mitme tabeliga liigad (laadimise vaheplokk ja kaardi laius): NBA konverentsid, Europe Cupis Eesti klubide grupid.
+const TABLE_COUNT: Partial<Record<League, number>> = { nba: 2, europecup: 3 };
+
 function StandingsSkeleton({ groups }: { groups: number }) {
   return (
     <div className={`grid gap-6 ${groups > 1 ? "lg:grid-cols-2" : ""}`} aria-hidden>
@@ -225,7 +234,7 @@ export function StandingsCard() {
   } else if (data) {
     body = <p className="text-sm text-muted">Tabel ilmub pärast hooaja esimesi mänge.</p>;
   } else if (isPending) {
-    body = <StandingsSkeleton groups={league.id === "nba" ? 2 : 1} />;
+    body = <StandingsSkeleton groups={TABLE_COUNT[league.id] ?? 1} />;
   } else {
     body = (
       <div className="flex flex-col items-start gap-4">
@@ -243,7 +252,7 @@ export function StandingsCard() {
 
   return (
     // Ühe tabeliga liigal jääks täislaiuses tabeli rida liiga pikaks: kaart on sisu laiune.
-    <Card className={league.id === "nba" ? "" : "lg:max-w-[56rem]"}>
+    <Card className={TABLE_COUNT[league.id] ? "" : "lg:max-w-[56rem]"}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <WidgetTitle icon={ListOrdered}>Tabel</WidgetTitle>
         {data?.season && (

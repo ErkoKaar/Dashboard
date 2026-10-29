@@ -6,11 +6,11 @@ import { PersistQueryClientProvider, removeOldestQuery } from "@tanstack/react-q
 import { ReactNode, useState } from "react";
 import type { League } from "@/lib/queries/useNba";
 
-// Korvpallivaadete (NBA, EuroLeague, Est-Lat) andmed jäävad brauserisse alles: lehe uuel avamisel on
+// Korvpallivaadete (NBA, EuroLeague, Est-Lat, Europe Cup) andmed jäävad brauserisse alles: lehe uuel avamisel on
 // mängud, parimad sooritused, MVP race ja tabel kohe näha ning värske seis tuleb taustal (andmed on
 // taastamisel vananenud, nii et päringud käivad kohe uuesti). Boxscore'e ei salvestata, et maht ei
 // kasvaks mängude kaupa.
-const PERSISTED_LEAGUES: readonly League[] = ["nba", "euroleague", "estlat"];
+const PERSISTED_LEAGUES: readonly League[] = ["nba", "euroleague", "estlat", "europecup"];
 const PERSIST_MAX_AGE = 24 * 60 * 60 * 1000;
 // Muuda, kui mõne vastuse kuju muutub: vana salvestus visatakse siis ära, mitte ei näidata valel kujul.
 const PERSIST_BUSTER = "v1";

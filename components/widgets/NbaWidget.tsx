@@ -7,7 +7,7 @@ import { NbaLeadersCard } from "./nba/NbaLeadersCard";
 import { NbaMvpRace, PrefetchMvpRace } from "./nba/NbaMvpRace";
 import { RecapPlayerProvider } from "./nba/RecapPlayer";
 import { StandingsCard } from "./nba/StandingsCard";
-import { LeagueProvider } from "./nba/league";
+import { leagueConfig, LeagueProvider } from "./nba/league";
 
 type View = "games" | "mvp" | "standings";
 
@@ -54,8 +54,10 @@ function PeriodSwitch({ period, onChange }: { period: NbaPeriod; onChange: (peri
 
 // Kolm vaadet: mängud (ajavahemik juhib mängude ja parimate soorituste kaarti), MVP race ja tabel
 // (mõlemad alati terve hooaeg). Vaate nimed on suured display-sõnad, ajavahemik nende all teise taseme pill.
-// Sama vidin teenib NBA-d, EuroLeague'i ja Est-Lat liigat: liiga määrab andmeallika ja efektiivsuse nime.
+// Sama vidin teenib NBA-d, EuroLeague'i, Est-Lat liigat ja Europe Cupi: liiga määrab andmeallika,
+// efektiivsuse nime ja mängijate edetabeli nime (Europe Cupis "Parimad mängijad").
 function BasketballWidget({ league }: { league: League }) {
+  const { mvpLabel } = leagueConfig(league);
   const [view, setView] = useState<View>("games");
   // 3 päeva: hommikul on ka eilsed õhtused mängud näha (EuroLeague'i "Täna" on Eesti kuupäeva järgi).
   const [period, setPeriod] = useState<NbaPeriod>("3d");
@@ -66,18 +68,19 @@ function BasketballWidget({ league }: { league: League }) {
         {view !== "mvp" && <PrefetchMvpRace />}
         <div className="flex flex-col gap-5">
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
-            <div role="group" aria-label="Vaade" className="flex items-baseline gap-5 sm:gap-7">
+            {/* "Parimad mängijad" (Europe Cup) ei mahu telefonis teistega ühele reale: viimane vaade läheb alla. */}
+            <div role="group" aria-label="Vaade" className="flex flex-wrap items-baseline gap-x-5 gap-y-1 sm:gap-x-7">
               {VIEWS.map(({ id, label }) => (
                 <button
                   key={id}
                   type="button"
                   onClick={() => setView(id)}
                   aria-pressed={view === id}
-                  className={`cursor-pointer rounded font-display text-3xl font-semibold tracking-[-0.03em] transition-colors duration-200 [font-stretch:85%] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-bright sm:text-4xl ${
+                  className={`cursor-pointer whitespace-nowrap rounded font-display text-3xl font-semibold tracking-[-0.03em] transition-colors duration-200 [font-stretch:85%] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-bright sm:text-4xl ${
                     view === id ? "text-foreground" : "text-muted/50 hover:text-muted"
                   }`}
                 >
-                  {label}
+                  {id === "mvp" ? mvpLabel : label}
                 </button>
               ))}
             </div>
@@ -116,4 +119,8 @@ export function EuroLeagueWidget() {
 
 export function EstLatWidget() {
   return <BasketballWidget league="estlat" />;
+}
+
+export function EuropeCupWidget() {
+  return <BasketballWidget league="europecup" />;
 }

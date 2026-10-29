@@ -287,7 +287,7 @@ export function NbaMvpRace() {
     body = (
       <div className="flex flex-col items-start gap-4">
         <div>
-          <p className="text-sm text-foreground">MVP race&apos;i ei saanud laadida.</p>
+          <p className="text-sm text-foreground">Edetabelit ei saanud laadida.</p>
           <p className="mt-1 text-xs text-muted">Andmeallika liides võis muutuda või on ajutiselt maas.</p>
         </div>
         <Button variant="ghost" onClick={() => refetch()} disabled={isFetching}>
@@ -301,7 +301,7 @@ export function NbaMvpRace() {
   return (
     <Card>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <WidgetTitle icon={Crown}>MVP race</WidgetTitle>
+        <WidgetTitle icon={Crown}>{league.mvpLabel}</WidgetTitle>
         {data?.season && <p className="text-xs tabular-nums text-muted">Hooaeg {data.season}</p>}
       </div>
       {body}

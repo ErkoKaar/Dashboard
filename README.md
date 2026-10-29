@@ -8,7 +8,7 @@
 <h1 align="center">Dashboard</h1>
 
 <p align="center">
-  My start page: today's tasks and habits, calendar, money, chess and Estonian basketball on one screen, plus live NBA, EuroLeague and Estonian-Latvian league views.
+  My start page: today's tasks and habits, calendar, money, chess and Estonian basketball on one screen, plus live NBA, EuroLeague, Estonian-Latvian league and FIBA Europe Cup views.
 </p>
 
 <p align="center">
@@ -32,7 +32,7 @@
 </p>
 
 > [!NOTE]
-> The demo needs no login. Tasks, habits, projects, calendar, money, notes and files are made-up sample data that lives in your browser: change anything you like, a reload brings the demo back. The NBA, EuroLeague and Est-Lat views, Delfi news and the weather are live.
+> The demo needs no login. Tasks, habits, projects, calendar, money, notes and files are made-up sample data that lives in your browser: change anything you like, a reload brings the demo back. The NBA, EuroLeague, Est-Lat and Europe Cup views, Delfi news and the weather are live.
 
 ## What's inside
 
@@ -93,14 +93,16 @@ The header has a clock, the weather in Tallinn and an animated WebGL sky that ch
   </tr>
 </table>
 
-### NBA, EuroLeague and Est-Lat Liiga
+### NBA, EuroLeague, Est-Lat Liiga and Europe Cup
 
-All three leagues share the same views:
+All four leagues share the same views:
 
 - **Games** for today, 3 days, 7 days, a month or the whole season. Open a finished game for the full boxscore. NBA and EuroLeague games get their YouTube recap, which plays right in the list.
-- **Best performances**: each player's best game in the chosen period, by efficiency (EFF in the NBA, PIR in the EuroLeague, EF in Est-Lat), points, rebounds or assists.
+- **Best performances**: each player's best game in the chosen period, by efficiency (EFF in the NBA, PIR in the EuroLeague, EF in Est-Lat, FIBA EFF in the Europe Cup), points, rebounds or assists.
 - **MVP race**: season leaders by efficiency per game with their full stat line.
 - **Standings** with home and away records, last 10 games and streaks.
+
+The Europe Cup view follows only the three Estonian clubs (Pärnu, Tartu and Kalev): their games, the standings of their groups, and best performances and best players (the MVP race under another name) from their own players.
 
 <table>
   <tr>
@@ -159,7 +161,7 @@ flowchart LR
     API["/api/*<br/>session check"]
   end
   PUB["Public APIs<br/>Open-Meteo, Chess.com,<br/>EstHoop, Delfi"]
-  EXT["Google Calendar, ESPN,<br/>EuroLeague, estlatbl.com,<br/>YouTube, EstHoop"]
+  EXT["Google Calendar, ESPN,<br/>EuroLeague, estlatbl.com,<br/>fiba.basketball, YouTube, EstHoop"]
   UI --> TM
   UI --> FT
   UI --> PUB
@@ -170,7 +172,7 @@ flowchart LR
 - **Two Supabase projects, two sessions.** Tasks and money live in the databases of my other apps, [TaskZen](https://github.com/ErkoKaar/TaskZen) and [FinanceTracker](https://github.com/ErkoKaar/FinanceTracker), which have separate auth. The login form takes an email and two passwords and signs in to both (`providers/AuthProvider.tsx`). The dashboard opens only when both sessions exist.
 - **Secrets stay on the server.** Every `/api` route checks the TaskManager session token first (`lib/server/requireUser.ts`). A verified token is remembered for up to five minutes, so a page load does not ask Supabase a dozen times.
 - **Strict Content Security Policy.** `middleware.ts` sets a CSP with a new nonce on every request, and `connect-src` lists only the services the browser really talks to.
-- **Sports data.** The NBA comes from ESPN's public API, the EuroLeague from its official API, and the Est-Lat league is read from the HTML tables on estlatbl.com, since it has no API. All three are mapped to the same types, so one set of components serves every league. Recaps are matched to games through the YouTube Data API, or the channel's RSS feed when no key is set. Server responses are cached, and the league views are also kept in `localStorage` for 24 hours, so they open instantly and refresh in the background.
+- **Sports data.** The NBA comes from ESPN's public API, the EuroLeague from its official API, the Est-Lat league is read from the HTML tables on estlatbl.com, since it has no API, and the Europe Cup from the data fiba.basketball embeds in its pages (Next.js RSC payload). All four are mapped to the same types, so one set of components serves every league. Recaps are matched to games through the YouTube Data API, or the channel's RSS feed when no key is set. Server responses are cached, and the league views are also kept in `localStorage` for 24 hours, so they open instantly and refresh in the background.
 - **Images.** Player photos go through the Next.js image optimizer (an ESPN PNG drops from about 220 KB to 30 KB as WebP). Est-Lat photos get their white background removed on a canvas.
 - **Demo mode.** With `NEXT_PUBLIC_DEMO_MODE=1` both Supabase clients are swapped for a small in-memory PostgREST stand-in ([`lib/demo`](lib/demo)) seeded with sample data relative to today, and the login is skipped. Calendar and Finance PIN calls are answered in the browser. On the server only the public sports routes stay open, and calendar, PIN and every other keyed route return 404 even if keys were set. The [live demo](https://erko-dashboard-demo.vercel.app) is a second Vercel project built from this repo with that variable.
 
@@ -181,7 +183,7 @@ flowchart LR
 | Framework | Next.js 15 (App Router), React 19, TypeScript |
 | Data | TanStack Query 5 with a `localStorage` persister, Supabase JS |
 | UI | Tailwind CSS 3, lucide-react, Recharts, dnd-kit, Tiptap, anime.js, ShaderGradient (three.js) for the sky |
-| Data sources | Supabase (x2), Google Calendar API, ESPN, EuroLeague API, estlatbl.com, YouTube, EstHoop API, Delfi, Chess.com, Open-Meteo |
+| Data sources | Supabase (x2), Google Calendar API, ESPN, EuroLeague API, estlatbl.com, fiba.basketball, YouTube, EstHoop API, Delfi, Chess.com, Open-Meteo |
 | Hosting | Vercel, functions in `fra1` |
 
 ## Getting started

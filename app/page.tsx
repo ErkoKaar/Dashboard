@@ -24,6 +24,7 @@ const CONTEXTS: SideMenuItem<DashboardContext>[] = [
   { id: "nba", label: "NBA", logo: "/leagues/nba.png" },
   { id: "euroleague", label: "EuroLeague", logo: "/leagues/euroleague.png" },
   { id: "estlat", label: "Est-Lat Liiga", logo: "/leagues/estlat.png" },
+  { id: "europecup", label: "Europe Cup", logo: "/leagues/europecup.png" },
 ];
 
 // Sõnad ilmuvad hägust teravaks. splitText kirjutab h1 sisu ümber, seega kutsuja annab
