@@ -121,7 +121,8 @@ async function computeDay(day: NbaGameDay, options: LeaderOptions): Promise<{ re
 
 /**
  * Lõplik päev jääb vahemällu igaveseks (unstable_cache ei salvesta visatud viga, seega poolik päev
- * arvutatakse järgmisel korral uuesti, kuid selle tulemust kasutatakse kohe).
+ * arvutatakse järgmisel korral uuesti, kuid selle tulemust kasutatakse kohe). v2: v1 päevades võis olla
+ * mängijateta boxscore'e (vt assertCompleteBoxscore).
  */
 async function dayTop(day: NbaGameDay, options: LeaderOptions): Promise<DayTop> {
   const run = async () => {
@@ -130,7 +131,7 @@ async function dayTop(day: NbaGameDay, options: LeaderOptions): Promise<DayTop> 
     return result;
   };
   try {
-    return await unstable_cache(run, ["bb-day-top-v1", options.league, day.date], { revalidate: false })();
+    return await unstable_cache(run, ["bb-day-top-v2", options.league, day.date], { revalidate: false })();
   } catch (error) {
     if (error instanceof IncompleteDay) return error.result;
     throw error;
@@ -139,8 +140,23 @@ async function dayTop(day: NbaGameDay, options: LeaderOptions): Promise<DayTop> 
 
 export async function buildLeaders(options: LeaderOptions): Promise<NbaLeadersResponse> {
   const dayLimit = (options.concurrency ?? DEFAULT_CONCURRENCY).days;
-  const dayTops = await settleWithLimit(options.days, dayLimit, (day) => dayTop(day, options));
+  const dayTops = await settleWithLimit(options.days, dayLimit, (day) =>
+    dayTop(day, options).catch((error: unknown) => {
+      console.error(`[leaders] ${options.league} ${day.date}`, error);
+      throw error;
+    }),
+  );
   const tops = dayTops.filter((d): d is DayTop => d !== null);
+  // Ebaõnnestunud päeva lõppenud mängud lähevad koguarvu ("Arvestatud 14/20"), et poolik tulemus paistaks.
+  // Kui ühtki mängu ei saanud arvestada, on see viga (route annab 502 ja päring proovib uuesti), mitte
+  // vastus "selles vahemikus pole mänge".
+  const failedGames = options.days.reduce(
+    (sum, day, i) => (dayTops[i] ? sum : sum + day.games.filter((game) => game.completed && game.countsForStats).length),
+    0,
+  );
+  if (failedGames > 0 && tops.every((d) => d.gamesCounted === 0)) {
+    throw new Error(`${options.league}: parimate soorituste päevi ei saanud arvutada`);
+  }
 
   // Video ja ESPN-i artikkel lisatakse praegustest mänguandmetest: highlight ilmub tihti tunde pärast
   // mängu ja peab jõudma ka juba vahemälus olevale päevale.
@@ -163,6 +179,6 @@ export async function buildLeaders(options: LeaderOptions): Promise<NbaLeadersRe
   return {
     top,
     gamesCounted: tops.reduce((sum, d) => sum + d.gamesCounted, 0),
-    gamesTotal: tops.reduce((sum, d) => sum + d.gamesTotal, 0),
+    gamesTotal: tops.reduce((sum, d) => sum + d.gamesTotal, 0) + failedGames,
   };
 }

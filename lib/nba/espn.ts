@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { assertCompleteBoxscore } from "@/lib/basketball/boxscore";
 import { buildLeaders } from "@/lib/basketball/leaders";
 import { fetchJson, safeUrl, settleWithLimit } from "@/lib/basketball/http";
 import { periodDates } from "@/lib/basketball/period";
@@ -383,7 +384,7 @@ export async function getLiveBoxscore(gameId: string): Promise<NbaBoxscore> {
  * ka serveri taaskäivitusel. Kui mäng pole tegelikult lõppenud või andmed puuduvad, visatakse
  * viga: unstable_cache vigu ei salvesta, nii et poolik seis vahemällu ei jää.
  * Võtme versioon tõuseb, kui NbaBoxscore'i kuju muutub (v2: tiimivärv, skoor, kodu/võõrsil;
- * v3: mängija eff).
+ * v3: mängija eff; v4: tiimid ilma mängijate punktideta enam vahemällu ei jää).
  */
 export const getFinalBoxscore = unstable_cache(
   async (gameId: string): Promise<NbaBoxscore> => {
@@ -391,11 +392,9 @@ export const getFinalBoxscore = unstable_cache(
     if (summary.header?.competitions?.[0]?.status?.type?.completed !== true) {
       throw new Error("Mäng pole veel lõppenud");
     }
-    const boxscore = parseBoxscore(gameId, summary);
-    if (boxscore.teams.length < 2) throw new Error("Boxscore puudub");
-    return boxscore;
+    return assertCompleteBoxscore(parseBoxscore(gameId, summary));
   },
-  ["nba-final-boxscore-v3"],
+  ["nba-final-boxscore-v4"],
   { revalidate: false },
 );
 

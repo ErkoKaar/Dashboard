@@ -14,7 +14,8 @@ export async function GET(request: Request) {
 
   try {
     return NextResponse.json(await getGameDays(period));
-  } catch {
+  } catch (error) {
+    console.error("[estlat/games]", error);
     return NextResponse.json({ error: "Est-Lat liiga mängude laadimine ebaõnnestus" }, { status: 502 });
   }
 }

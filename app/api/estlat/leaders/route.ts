@@ -16,7 +16,8 @@ export async function GET(request: Request) {
 
   try {
     return NextResponse.json(await getLeaders(period));
-  } catch {
+  } catch (error) {
+    console.error("[estlat/leaders]", error);
     return NextResponse.json({ error: "Est-Lat liiga statistika laadimine ebaõnnestus" }, { status: 502 });
   }
 }

@@ -14,7 +14,8 @@ export async function GET(request: Request) {
 
   try {
     return NextResponse.json(await getGameDays(period));
-  } catch {
+  } catch (error) {
+    console.error("[euroleague/games]", error);
     return NextResponse.json({ error: "EuroLeague'i mängude laadimine ebaõnnestus" }, { status: 502 });
   }
 }

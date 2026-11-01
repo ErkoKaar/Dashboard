@@ -10,6 +10,7 @@ import {
   FolderPlus,
   FolderTree,
   Pencil,
+  SquareArrowOutUpRight,
   Trash2,
 } from "lucide-react";
 import {
@@ -37,11 +38,10 @@ import {
   useDeleteFsNode,
   useFsNodes,
   useMoveFsNodes,
+  useAutosaveFsFile,
   useRenameFsNode,
-  useSaveFsFileContent,
 } from "@/lib/queries/useFileSystem";
 
-const SAVE_DELAY = 800;
 const ROOT_KEY = "__root__";
 // Viimati avatud fail ja avatud kaustad jäävad meelde ka tabi vahetamisel / lehe värskendamisel.
 const STORAGE_KEY = "fs-widget-state";
@@ -220,35 +220,7 @@ interface FileEditorProps {
 }
 
 function FileEditor({ file }: FileEditorProps) {
-  const { mutate: saveContent, error: saveError } = useSaveFsFileContent();
-  const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Viimane salvestamata sisu, et faili vahetamisel muudatused kaduma ei läheks.
-  const pendingRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      if (pendingRef.current !== null) saveContent({ id: file.id, content: pendingRef.current });
-    };
-  }, [file.id, saveContent]);
-
-  function scheduleSave(html: string) {
-    setStatus("saving");
-    pendingRef.current = html;
-
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      pendingRef.current = null;
-      saveContent(
-        { id: file.id, content: html },
-        {
-          onSuccess: () => setStatus("saved"),
-          onError: () => setStatus("idle"),
-        },
-      );
-    }, SAVE_DELAY);
-  }
+  const { status, error: saveError, scheduleSave, editorKey } = useAutosaveFsFile(file);
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
@@ -257,12 +229,29 @@ function FileEditor({ file }: FileEditorProps) {
           <FileText className="h-4 w-4 shrink-0 text-accent" aria-hidden />
           <span className="truncate">{file.name}</span>
         </span>
-        <span className="shrink-0 font-mono text-xs text-muted">
-          {status === "saving" ? "salvestamine..." : status === "saved" ? "salvestatud" : ""}
+        <span className="flex shrink-0 items-center gap-3">
+          <span className="font-mono text-xs text-muted">
+            {status === "saving" ? "salvestamine..." : status === "saved" ? "salvestatud" : ""}
+          </span>
+          {/* Dokumendivaade oma aadressil (app/doc/[id]); uues aknas, et dashboard jääks lahti. */}
+          <a
+            href={`/doc/${encodeURIComponent(file.id)}`}
+            target="_blank"
+            rel="noopener"
+            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted transition-colors duration-200 hover:bg-surface-hover hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-bright"
+          >
+            <SquareArrowOutUpRight className="h-3.5 w-3.5" aria-hidden />
+            Ava dokument
+          </a>
         </span>
       </div>
 
-      <RichTextEditor content={file.content} onChange={scheduleSave} placeholder="Kirjuta faili sisu siia..." />
+      <RichTextEditor
+        key={editorKey}
+        content={file.content}
+        onChange={scheduleSave}
+        placeholder="Kirjuta faili sisu siia..."
+      />
 
       {saveError && <p className="mt-2 text-sm text-destructive">Salvestamine ebaõnnestus.</p>}
     </div>

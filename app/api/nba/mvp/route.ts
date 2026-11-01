@@ -10,7 +10,8 @@ export async function GET(request: Request) {
 
   try {
     return NextResponse.json(await getMvpRace());
-  } catch {
+  } catch (error) {
+    console.error("[nba/mvp]", error);
     return NextResponse.json({ error: "MVP race'i laadimine ebaõnnestus" }, { status: 502 });
   }
 }

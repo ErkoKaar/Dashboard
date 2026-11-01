@@ -1,7 +1,10 @@
 import { unstable_cache } from "next/cache";
+import { assertCompleteBoxscore } from "@/lib/basketball/boxscore";
 import { fetchText, settleWithLimit } from "@/lib/basketball/http";
 import { buildLeaders } from "@/lib/basketball/leaders";
 import { groupGameDays } from "@/lib/basketball/period";
+import { clubPlayerPhotos } from "@/lib/estlat/api";
+import { clubColor } from "@/lib/estlat/colors";
 import type {
   NbaBoxscore,
   NbaGame,
@@ -10,6 +13,7 @@ import type {
   NbaLeadersResponse,
   NbaMvpEntry,
   NbaMvpResponse,
+  NbaPerformance,
   NbaPeriod,
   NbaPlayerLine,
   NbaStandingsGroup,
@@ -496,21 +500,65 @@ async function loadBoxscore(id: string): Promise<{ boxscore: NbaBoxscore; final:
   return { boxscore, final: game.completed };
 }
 
-export async function getLiveBoxscore(id: string): Promise<NbaBoxscore> {
-  return (await loadBoxscore(id)).boxscore;
+// --- Fotod ja klubivärvid Est-Lat liigast ---
+
+// Klubid, kes mängivad ka Est-Lat liigas (Eesti klubid ja Valmiera): fotod ja klubivärvid tulevad sealt
+// (lib/estlat). Nime järgi nagu OUR_CLUBS; kood on Est-Lat oma.
+const EST_LAT_CLUBS: [RegExp, string][] = [
+  [/kalev/i, "KLV"],
+  [/tartu/i, "TAR"],
+  [/p[äa]rnu/i, "PAR"],
+  [/valmiera/i, "VAL"],
+];
+
+const estLatClub = (teamName: string) => EST_LAT_CLUBS.find(([pattern]) => pattern.test(teamName))?.[1];
+
+/** Est-Lat fotod mängijatele, kelle klubi mängib Est-Lat liigas (nimi -> foto). */
+async function photosFor(players: { name: string; team: string }[]): Promise<Map<string, string>> {
+  const wanted = players.flatMap((player) => {
+    const club = estLatClub(player.team);
+    return club ? [{ name: player.name, club }] : [];
+  });
+  return wanted.length > 0 ? clubPlayerPhotos(wanted) : new Map();
 }
 
-/** Lõppenud mängu boxscore jääb vahemällu igaveseks; pooleli mäng visatakse (ei salvestu). */
-export const getFinalBoxscore = unstable_cache(
+/**
+ * Fotod ja värvid lisatakse vastusele, mitte vahemällu jäävasse boxscore'i ega päevade topidesse:
+ * hiljem lisandunud foto jõuab nii ka vanade mängude juurde. Est-Lat fotodel on valge taust, mille
+ * brauser eemaldab (league.tsx whitePhotoBackground).
+ */
+async function withPhotos(boxscore: NbaBoxscore): Promise<NbaBoxscore> {
+  const photos = await photosFor(
+    boxscore.teams.flatMap((team) => team.players.map((line) => ({ name: line.name, team: team.name }))),
+  );
+  return {
+    ...boxscore,
+    teams: boxscore.teams.map((team) => ({
+      ...team,
+      color: clubColor(estLatClub(team.name)),
+      players: team.players.map((line) => ({ ...line, headshot: photos.get(line.name) ?? null })),
+    })),
+  };
+}
+
+/** Lõppenud mängu boxscore jääb vahemällu igaveseks (fotodeta); pooleli mäng visatakse (ei salvestu). */
+const cachedFinalBoxscore = unstable_cache(
   async (id: string): Promise<NbaBoxscore> => {
     const { boxscore, final } = await loadBoxscore(id);
     if (!final) throw new Error("Mäng pole veel lõppenud");
-    if (boxscore.teams.some((team) => team.players.length === 0)) throw new Error("Boxscore puudub");
-    return boxscore;
+    return assertCompleteBoxscore(boxscore);
   },
   ["europecup-final-boxscore-v1"],
   { revalidate: false },
 );
+
+export async function getLiveBoxscore(id: string): Promise<NbaBoxscore> {
+  return withPhotos((await loadBoxscore(id)).boxscore);
+}
+
+export async function getFinalBoxscore(id: string): Promise<NbaBoxscore> {
+  return withPhotos(await cachedFinalBoxscore(id));
+}
 
 /** Ainult Eesti klubide mängijad; vastase tiim jääb alles, et sooritusel oleks vastane ja tulemus. */
 function onlyOurPlayers(boxscore: NbaBoxscore): NbaBoxscore {
@@ -521,13 +569,28 @@ function onlyOurPlayers(boxscore: NbaBoxscore): NbaBoxscore {
 
 export async function getLeaders(period: NbaPeriod): Promise<NbaLeadersResponse> {
   const { today, days } = await getGameDays(period);
-  return buildLeaders({
+  const leaders = await buildLeaders({
     league: "europecup",
     today,
     days,
-    getFinalBoxscore: async (game) => onlyOurPlayers(await getFinalBoxscore(game.id)),
+    getFinalBoxscore: async (game) => onlyOurPlayers(await cachedFinalBoxscore(game.id)),
     concurrency: { days: 2, boxscores: BOXSCORE_CONCURRENCY },
   });
+
+  const photos = await photosFor(
+    Object.values(leaders.top)
+      .flat()
+      .map((performance) => ({ name: performance.player.name, team: performance.team.name })),
+  );
+  const withPhoto = (performance: NbaPerformance): NbaPerformance => ({
+    ...performance,
+    player: { ...performance.player, headshot: photos.get(performance.player.name) ?? null },
+    team: { ...performance.team, color: clubColor(estLatClub(performance.team.name)) },
+  });
+  const top = Object.fromEntries(
+    Object.entries(leaders.top).map(([metric, performances]) => [metric, performances.map(withPhoto)]),
+  ) as NbaLeadersResponse["top"];
+  return { ...leaders, top };
 }
 
 // --- Parimad mängijad ---
@@ -554,7 +617,7 @@ export async function getMvpRace(): Promise<NbaMvpResponse> {
   const raw = await fetchSeasonGames(eventPath(start));
   const played = raw.filter((game) => isOurGame(game) && isFinal(game));
   const boxscores = await settleWithLimit(played, BOXSCORE_CONCURRENCY, async (game) =>
-    onlyOurPlayers(await getFinalBoxscore(String(game.gameId))),
+    onlyOurPlayers(await cachedFinalBoxscore(String(game.gameId))),
   );
 
   const totals = new Map<string, Totals>();
@@ -589,7 +652,7 @@ export async function getMvpRace(): Promise<NbaMvpResponse> {
         team: {
           abbreviation: total.team.abbreviation,
           name: total.team.name,
-          color: null,
+          color: clubColor(estLatClub(total.team.name)),
           wins: record?.wins ?? null,
           losses: record?.losses ?? null,
         },
@@ -607,9 +670,12 @@ export async function getMvpRace(): Promise<NbaMvpResponse> {
         eff: avg(total.eff),
       };
     })
-    .sort((a, b) => b.eff - a.eff || b.pts - a.pts);
+    .sort((a, b) => b.eff - a.eff || b.pts - a.pts)
+    .slice(0, MVP_COUNT);
 
-  return { season: seasonLabel(start), players: entries.slice(0, MVP_COUNT) };
+  const photos = await photosFor(entries.map((entry) => ({ name: entry.player.name, team: entry.team.name })));
+  const players = entries.map((entry) => ({ ...entry, player: { ...entry.player, headshot: photos.get(entry.player.name) ?? null } }));
+  return { season: seasonLabel(start), players };
 }
 
 // --- Tabel ---

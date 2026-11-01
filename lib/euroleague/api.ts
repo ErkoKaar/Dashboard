@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { assertCompleteBoxscore } from "@/lib/basketball/boxscore";
 import { fetchJson } from "@/lib/basketball/http";
 import { buildLeaders } from "@/lib/basketball/leaders";
 import { groupGameDays } from "@/lib/basketball/period";
@@ -520,10 +521,9 @@ export const getFinalBoxscore = unstable_cache(
   async (key: string): Promise<NbaBoxscore> => {
     const { boxscore, final } = await loadBoxscore(key);
     if (!final) throw new Error("Mäng pole veel lõppenud");
-    if (boxscore.teams.some((team) => team.players.length === 0)) throw new Error("Boxscore puudub");
-    return boxscore;
+    return assertCompleteBoxscore(boxscore);
   },
-  ["euroleague-final-boxscore-v1"],
+  ["euroleague-final-boxscore-v2"],
   { revalidate: false },
 );
 

@@ -82,8 +82,8 @@ The header has a clock, the weather in Tallinn and an animated WebGL sky that ch
 ### Other views
 
 - **Taskmanager**: every open task in one list, from today's tasks and all projects. Filter by source, project or date, drag to reorder, set due dates and criticality, move tasks between projects.
-- **Quick Notes**: a single rich-text scratchpad (Tiptap) that saves as you type.
-- **File system**: folders and rich-text files in a tree. Drag to move and reorder.
+- **Quick Notes**: a single rich-text scratchpad (Tiptap) with headings and bullet or numbered lists that saves as you type.
+- **File system**: folders and rich-text files in a tree. Drag to move and reorder. **Open document** shows a file as a page at its own address (`/doc/<id>`), like a word processor; edits in either window reach the other.
 - **Delfi korvpall**: the latest basketball news from [sport.delfi.ee](https://sport.delfi.ee).
 
 <table>
@@ -102,7 +102,7 @@ All four leagues share the same views:
 - **MVP race**: season leaders by efficiency per game with their full stat line.
 - **Standings** with home and away records, last 10 games and streaks.
 
-The Europe Cup view follows only the three Estonian clubs (Pärnu, Tartu and Kalev): their games, the standings of their groups, and best performances and best players (the MVP race under another name) from their own players.
+The Europe Cup view follows only the three Estonian clubs (Pärnu, Tartu and Kalev): their games, the standings of their groups, and best performances and best players (the MVP race under another name) from their own players. Player photos and club colours come from the Est-Lat league site, where the same clubs play.
 
 <table>
   <tr>
@@ -173,7 +173,7 @@ flowchart LR
 - **Secrets stay on the server.** Every `/api` route checks the TaskManager session token first (`lib/server/requireUser.ts`). A verified token is remembered for up to five minutes, so a page load does not ask Supabase a dozen times.
 - **Strict Content Security Policy.** `middleware.ts` sets a CSP with a new nonce on every request, and `connect-src` lists only the services the browser really talks to.
 - **Sports data.** The NBA comes from ESPN's public API, the EuroLeague from its official API, the Est-Lat league is read from the HTML tables on estlatbl.com, since it has no API, and the Europe Cup from the data fiba.basketball embeds in its pages (Next.js RSC payload). All four are mapped to the same types, so one set of components serves every league. Recaps are matched to games through the YouTube Data API, or the channel's RSS feed when no key is set. Server responses are cached, and the league views are also kept in `localStorage` for 24 hours, so they open instantly and refresh in the background.
-- **Images.** Player photos go through the Next.js image optimizer (an ESPN PNG drops from about 220 KB to 30 KB as WebP). Est-Lat photos get their white background removed on a canvas.
+- **Images.** Player photos go through the Next.js image optimizer (an ESPN PNG drops from about 220 KB to 30 KB as WebP). Est-Lat photos (also used in the Europe Cup view) get their white background removed on a canvas.
 - **Demo mode.** With `NEXT_PUBLIC_DEMO_MODE=1` both Supabase clients are swapped for a small in-memory PostgREST stand-in ([`lib/demo`](lib/demo)) seeded with sample data relative to today, and the login is skipped. Calendar and Finance PIN calls are answered in the browser. On the server only the public sports routes stay open, and calendar, PIN and every other keyed route return 404 even if keys were set. The [live demo](https://erko-dashboard-demo.vercel.app) is a second Vercel project built from this repo with that variable.
 
 ## Tech stack

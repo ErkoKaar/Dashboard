@@ -10,7 +10,8 @@ export async function GET(request: Request) {
 
   try {
     return NextResponse.json(await getMvpRace());
-  } catch {
+  } catch (error) {
+    console.error("[euroleague/mvp]", error);
     return NextResponse.json({ error: "EuroLeague'i MVP race'i laadimine ebaõnnestus" }, { status: 502 });
   }
 }

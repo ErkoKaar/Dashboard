@@ -12,7 +12,8 @@ export async function GET(request: Request) {
 
   try {
     return NextResponse.json(await getMvpRace());
-  } catch {
+  } catch (error) {
+    console.error("[europecup/mvp]", error);
     return NextResponse.json({ error: "Europe Cupi parimate mängijate laadimine ebaõnnestus" }, { status: 502 });
   }
 }

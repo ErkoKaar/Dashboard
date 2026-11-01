@@ -10,7 +10,8 @@ export async function GET(request: Request) {
 
   try {
     return NextResponse.json(await getStandings());
-  } catch {
+  } catch (error) {
+    console.error("[europecup/standings]", error);
     return NextResponse.json({ error: "Tabeli laadimine ebaõnnestus" }, { status: 502 });
   }
 }

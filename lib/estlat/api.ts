@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { assertCompleteBoxscore } from "@/lib/basketball/boxscore";
 import { fetchText, settleWithLimit } from "@/lib/basketball/http";
 import { buildLeaders } from "@/lib/basketball/leaders";
 import { groupGameDays } from "@/lib/basketball/period";
@@ -281,6 +282,69 @@ async function fetchPlayerPhotos(): Promise<Map<string, string>> {
 const playerPhotos = () => fetchPlayerPhotos().catch(() => new Map<string, string>());
 const photoOf = (photos: Map<string, string>, name: string) => photos.get(nameKey(name)) ?? null;
 
+/** Nimekirja kuju "Palek III, Keith Oliver" -> võti "keith palek" (esimene eesnimi ja perenimi ilma järelliiteta). */
+function rosterKey(listed: string): string {
+  const [surname = "", given = ""] = listed.split(",").map((part) => part.trim());
+  const family = surname.replace(/\s+(jr|sr|ii|iii|iv|v)\.?$/i, "");
+  return nameKey(`${given.split(/\s+/)[0] ?? ""} ${family}`);
+}
+
+interface RosterEntry {
+  pid: string;
+  key: string;
+  club: string;
+}
+
+/** Kõik mängijad, ka galeriis fotota: <div class="player"><a href="...?pid=32476">Palek III, Keith</a><span class="team">TAR</span>. */
+async function fetchRoster(): Promise<RosterEntry[]> {
+  const html = await fetchPage("mangijad", PHOTOS_REVALIDATE);
+  return [
+    ...html.matchAll(/<div class="player">\s*<a href="[^"]*[?&]pid=(\d+)">([\s\S]*?)<\/a>\s*<span class="team">([^<]*)<\/span>/g),
+  ].map(([, pid, name, club]) => ({ pid, key: rosterKey(text(name)), club: text(club) }));
+}
+
+/** Mängija oma lehe portree: <div class="playerHeader"><div class="photo"><img src=...>. */
+async function fetchProfilePhoto(pid: string): Promise<string | null> {
+  const html = await fetchPage(`mangijad?pid=${pid}`, PHOTOS_REVALIDATE);
+  const src = html.match(/<div class="playerHeader">[\s\S]*?<img[^>]+src="(https:\/\/[^"]+)"/)?.[1];
+  return src?.includes("player-picture") ? src : null;
+}
+
+// Mängija leht on ~340 KB: korraga kuni 3.
+const PROFILE_CONCURRENCY = 3;
+
+/**
+ * Fotod teise vaate (Europe Cup) mängijatele, kelle klubi mängib ka Est-Lat liigas. Esmalt mängijate
+ * lehe galeriist nime järgi; galeriis pole kõiki mängijaid, siis sama klubi ja nimega mängija oma lehelt
+ * (lehed on ööpäeva vahemälus). `club` on Est-Lat klubikood (KLV, PAR, TAR). Tagastab nimi -> foto;
+ * leidmata nimed puuduvad ja lehe vea korral jääb tulemus poolikuks.
+ */
+export async function clubPlayerPhotos(players: { name: string; club: string }[]): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  const unique = [...new Map(players.map((player) => [player.name, player])).values()];
+  const gallery = await playerPhotos();
+  const missing = unique.filter((player) => {
+    const photo = photoOf(gallery, player.name);
+    if (photo) result.set(player.name, photo);
+    return !photo;
+  });
+  if (missing.length === 0) return result;
+
+  const roster = await fetchRoster().catch((): RosterEntry[] => []);
+  const matches = missing.flatMap((player) => {
+    const key = nameKey(player.name);
+    const found = roster.filter((entry) => entry.club === player.club && entry.key === key);
+    // Kaks sama nimega mängijat samas klubis: foto jääb ära, et keegi ei saaks teise pilti.
+    return found.length === 1 ? [{ name: player.name, pid: found[0].pid }] : [];
+  });
+  const photos = await settleWithLimit(matches, PROFILE_CONCURRENCY, (match) => fetchProfilePhoto(match.pid));
+  matches.forEach((match, i) => {
+    const photo = photos[i];
+    if (photo) result.set(match.name, photo);
+  });
+  return result;
+}
+
 function withPhotos(boxscore: NbaBoxscore, photos: Map<string, string>): NbaBoxscore {
   return {
     ...boxscore,
@@ -423,10 +487,9 @@ const cachedFinalBoxscore = unstable_cache(
   async (id: string): Promise<NbaBoxscore> => {
     const { boxscore, final } = await loadBoxscore(id);
     if (!final) throw new Error("Mäng pole veel lõppenud");
-    if (boxscore.teams.some((team) => team.players.length === 0)) throw new Error("Boxscore puudub");
-    return boxscore;
+    return assertCompleteBoxscore(boxscore);
   },
-  ["estlat-final-boxscore-v1"],
+  ["estlat-final-boxscore-v2"],
   { revalidate: false },
 );
 

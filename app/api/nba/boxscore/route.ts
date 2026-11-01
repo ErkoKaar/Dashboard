@@ -16,12 +16,14 @@ export async function GET(request: Request) {
     if (params.get("final") === "1") {
       try {
         return NextResponse.json(await getFinalBoxscore(id));
-      } catch {
+      } catch (error) {
+        console.warn("[nba/boxscore] lõplik boxscore puudub", id, error instanceof Error ? error.message : error);
         // Kliendi arvates lõppenud, ESPN-i järgi veel mitte (või ajutine viga): proovi otse.
       }
     }
     return NextResponse.json(await getLiveBoxscore(id));
-  } catch {
+  } catch (error) {
+    console.error("[nba/boxscore]", error);
     return NextResponse.json({ error: "Boxscore'i laadimine ebaõnnestus" }, { status: 502 });
   }
 }

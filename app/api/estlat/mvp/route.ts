@@ -12,7 +12,8 @@ export async function GET(request: Request) {
 
   try {
     return NextResponse.json(await getMvpRace());
-  } catch {
+  } catch (error) {
+    console.error("[estlat/mvp]", error);
     return NextResponse.json({ error: "Est-Lat liiga MVP race'i laadimine ebaõnnestus" }, { status: 502 });
   }
 }

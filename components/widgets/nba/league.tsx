@@ -19,7 +19,7 @@ export interface LeagueConfig {
   mvpNote: string;
   /** Tabeli tsoonid: kohad 1..playoff pääsevad play-off'i, playoff+1..playIn play-in'i (null = play-in'i pole). */
   standingsZones: { playoff: number; playIn: number | null };
-  /** Mängijafotod on valgel stuudiotaustal, mis eemaldatakse brauseris (Est-Lat); muudel on taust läbipaistev. */
+  /** Mängijafotod on valgel stuudiotaustal, mis eemaldatakse brauseris (Est-Lat, Europe Cup); muudel on taust läbipaistev. */
   whitePhotoBackground: boolean;
   standingsNote: string;
 }
@@ -77,7 +77,8 @@ const CONFIGS: Record<League, LeagueConfig> = {
     mvpNote:
       "Pärnu, Tartu ja Kalevi mängijad, järjestus hooaja EFF-i järgi mängu kohta; mängijad, kes on mänginud vähemalt pooltes oma klubi mängudest. Joon näitab EFF-i liidriga võrreldes.",
     standingsZones: { playoff: 2, playIn: null },
-    whitePhotoBackground: false,
+    // Fotod tulevad Est-Lat liiga lehelt (lib/europecup/api.ts photosFor).
+    whitePhotoBackground: true,
     standingsNote: "Ainult grupid, kus mängivad Eesti klubid. Kohad 1-2 pääsevad edasi. Vorm: viimased 5 mängu, uusim paremal.",
   },
 };

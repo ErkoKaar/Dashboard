@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getTasksClient } from "@/lib/supabase/tasksClient";
 
@@ -175,4 +176,72 @@ export function useSaveFsFileContent() {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: FS_KEY }),
   });
+}
+
+const SAVE_DELAY = 800;
+// Oma salvestatud sisud: nende järgi eristatakse oma salvestust teises aknas tehtud muudatusest.
+const OWN_SAVES_KEPT = 20;
+
+export type FsSaveStatus = "idle" | "saving" | "saved";
+
+/**
+ * Faili sisu automaatne salvestus (File system ja dokumendivaade): 800 ms pärast viimast muudatust,
+ * faili vahetamisel kohe. Sama faili saab muuta kahes aknas (dashboard ja /doc/<id>): kui serverist tuleb
+ * sisu, mida see editor ise ei salvestanud, annab editorKey uue väärtuse ja editor laeb uue sisu. Oma
+ * salvestamata muudatuse ajal seda ei tehta, siis jääb peale viimasena salvestatu.
+ */
+export function useAutosaveFsFile(file: FsNode) {
+  const { mutate: saveContent, error } = useSaveFsFileContent();
+  const [status, setStatus] = useState<FsSaveStatus>("idle");
+  const [editorKey, setEditorKey] = useState(0);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Viimane salvestamata sisu, et faili vahetamisel muudatused kaduma ei läheks.
+  const pendingRef = useRef<string | null>(null);
+  const ownSavesRef = useRef<string[]>([file.content ?? ""]);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (pendingRef.current !== null) saveContent({ id: file.id, content: pendingRef.current });
+    };
+  }, [file.id, saveContent]);
+
+  useEffect(() => {
+    const content = file.content ?? "";
+    if (pendingRef.current !== null || ownSavesRef.current.includes(content)) return;
+    ownSavesRef.current = [content];
+    setEditorKey((key) => key + 1);
+  }, [file.content]);
+
+  // Akna sulgemisel ei jõua pooleli salvestus alati kohale: brauser küsib enne üle.
+  useEffect(() => {
+    if (status !== "saving") return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [status]);
+
+  const scheduleSave = useCallback(
+    (html: string) => {
+      setStatus("saving");
+      pendingRef.current = html;
+
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        pendingRef.current = null;
+        ownSavesRef.current = [...ownSavesRef.current, html].slice(-OWN_SAVES_KEPT);
+        saveContent(
+          { id: file.id, content: html },
+          // Vahepeal alanud uus muudatus jääb olekusse "saving" (ja hoiatus akna sulgemisel alles).
+          {
+            onSuccess: () => setStatus(pendingRef.current === null ? "saved" : "saving"),
+            onError: () => setStatus(pendingRef.current === null ? "idle" : "saving"),
+          },
+        );
+      }, SAVE_DELAY);
+    },
+    [file.id, saveContent],
+  );
+
+  return { status, error, scheduleSave, editorKey };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { ComponentType, SVGProps } from "react";
-import { Bold, Heading1, Heading2, Underline } from "lucide-react";
+import { Bold, Heading1, Heading2, List, ListOrdered, Underline } from "lucide-react";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Placeholder } from "@tiptap/extensions";
@@ -45,15 +45,37 @@ function ToolbarButton({ icon: Icon, label, active, onClick }: ToolbarButtonProp
   );
 }
 
+// panel: kaardi sees (File system, Quick Notes). page: dokumendivaade (app/doc/[id]), kus tekst on
+// heledal lehel ja tööriistariba jääb kerimisel lehe kohale paigale.
+type EditorVariant = "panel" | "page";
+
+const TOOLBAR_CLASS: Record<EditorVariant, string> = {
+  panel: "mb-2 flex items-center gap-0.5 rounded-lg border border-border/50 bg-surface/40 p-1",
+  page: "sticky top-16 z-10 mx-auto mb-4 flex w-full max-w-[816px] flex-wrap items-center gap-0.5 rounded-lg border border-white/10 bg-surface/90 p-1 shadow-[0_8px_24px_-12px_rgb(0_0_0/0.6)] backdrop-blur sm:mb-6",
+};
+
+const SURFACE_CLASS: Record<EditorVariant, string> = {
+  panel:
+    "flex-1 rounded-lg border border-white/10 bg-background/40 px-4 py-3 text-base leading-relaxed text-foreground transition-colors duration-200 focus-within:border-accent",
+  page: "rich-page mx-auto w-full max-w-[816px] rounded-sm px-5 py-8 text-[17px] leading-[1.7] sm:min-h-[1056px] sm:px-16 sm:py-16 md:px-24 md:py-20",
+};
+
 interface RichTextEditorProps {
   /** Algsisu (HTML või vana tavatekst). Loetakse ainult editori loomisel. */
   content: string | null | undefined;
   onChange: (html: string) => void;
   placeholder?: string;
   className?: string;
+  variant?: EditorVariant;
 }
 
-export function RichTextEditor({ content, onChange, placeholder = "", className = "" }: RichTextEditorProps) {
+export function RichTextEditor({
+  content,
+  onChange,
+  placeholder = "",
+  className = "",
+  variant = "panel",
+}: RichTextEditorProps) {
   const editor = useEditor({
     extensions: [StarterKit.configure({ heading: { levels: [1, 2] } }), Placeholder.configure({ placeholder })],
     content: toEditorContent(content),
@@ -69,13 +91,15 @@ export function RichTextEditor({ content, onChange, placeholder = "", className 
       h2: editor?.isActive("heading", { level: 2 }) ?? false,
       bold: editor?.isActive("bold") ?? false,
       underline: editor?.isActive("underline") ?? false,
+      bulletList: editor?.isActive("bulletList") ?? false,
+      orderedList: editor?.isActive("orderedList") ?? false,
     }),
   });
 
   return (
     <div className={`flex min-h-0 flex-1 flex-col ${className}`}>
       {editor && marks && (
-        <div className="mb-2 flex items-center gap-0.5 rounded-lg border border-border/50 bg-surface/40 p-1">
+        <div className={TOOLBAR_CLASS[variant]}>
           <ToolbarButton
             icon={Heading1}
             label="Pealkiri 1"
@@ -101,12 +125,26 @@ export function RichTextEditor({ content, onChange, placeholder = "", className 
             active={marks.underline}
             onClick={() => editor.chain().focus().toggleUnderline().run()}
           />
+          <span className="mx-1 h-4 w-px bg-border" aria-hidden />
+          {/* Ka klaviatuurilt: "- " või "1. " rea alguses, Tab teeb alamloendi. */}
+          <ToolbarButton
+            icon={List}
+            label="Täpploend"
+            active={marks.bulletList}
+            onClick={() => editor.chain().focus().toggleBulletList().run()}
+          />
+          <ToolbarButton
+            icon={ListOrdered}
+            label="Nummerdatud loend"
+            active={marks.orderedList}
+            onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          />
         </div>
       )}
 
       <div
         onClick={() => editor?.commands.focus()}
-        className="rich-editor flex-1 cursor-text rounded-lg border border-white/10 bg-background/40 px-4 py-3 text-base leading-relaxed text-foreground transition-colors duration-200 focus-within:border-accent"
+        className={`rich-editor cursor-text ${SURFACE_CLASS[variant]}`}
       >
         <EditorContent editor={editor} />
       </div>

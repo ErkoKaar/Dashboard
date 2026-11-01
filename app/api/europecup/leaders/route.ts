@@ -16,7 +16,8 @@ export async function GET(request: Request) {
 
   try {
     return NextResponse.json(await getLeaders(period));
-  } catch {
+  } catch (error) {
+    console.error("[europecup/leaders]", error);
     return NextResponse.json({ error: "Europe Cupi statistika laadimine ebaõnnestus" }, { status: 502 });
   }
 }
