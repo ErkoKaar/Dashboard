@@ -77,7 +77,7 @@ const CONFIGS: Record<League, LeagueConfig> = {
     mvpNote:
       "Pärnu, Tartu ja Kalevi mängijad, järjestus hooaja EFF-i järgi mängu kohta; mängijad, kes on mänginud vähemalt pooltes oma klubi mängudest. Joon näitab EFF-i liidriga võrreldes.",
     standingsZones: { playoff: 2, playIn: null },
-    // Fotod tulevad Est-Lat liiga lehelt (lib/europecup/api.ts photosFor).
+    // Fotod tulevad Est-Lat liiga lehelt või FIBA-st (lib/europecup/api.ts), mõlemal valge taust.
     whitePhotoBackground: true,
     standingsNote: "Ainult grupid, kus mängivad Eesti klubid. Kohad 1-2 pääsevad edasi. Vorm: viimased 5 mängu, uusim paremal.",
   },

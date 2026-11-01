@@ -3,6 +3,7 @@ import { assertCompleteBoxscore } from "@/lib/basketball/boxscore";
 import { buildLeaders } from "@/lib/basketball/leaders";
 import { fetchJson, safeUrl, settleWithLimit } from "@/lib/basketball/http";
 import { periodDates } from "@/lib/basketball/period";
+import { averagesOf, PROFILE_GAMES, StatTotals } from "@/lib/basketball/profile";
 import { attachRecaps, getChannelVideos, RecapVideo, withDurations } from "@/lib/basketball/youtube";
 import { shiftDate } from "@/lib/date";
 import type {
@@ -16,6 +17,8 @@ import type {
   NbaMvpResponse,
   NbaPeriod,
   NbaPlayerLine,
+  NbaPlayerProfile,
+  NbaProfileGame,
   NbaStandingsGroup,
   NbaStandingsResponse,
   NbaStandingsRow,
@@ -545,6 +548,161 @@ async function loadMvpRace(): Promise<NbaMvpResponse> {
  * toores päring käiks igal MVP race'i avamisel uuesti. Vahemällu läheb valmis edetabel, tunniks.
  */
 export const getMvpRace = unstable_cache(loadMvpRace, ["nba-mvp-race-v1"], { revalidate: MVP_REVALIDATE });
+
+// --- Mängija profiil ---
+
+const ESPN_ATHLETES = "https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes";
+const PROFILE_REVALIDATE = 900;
+
+interface EspnAthleteProfile {
+  athlete?: {
+    displayName?: string;
+    position?: { abbreviation?: string };
+    headshot?: { href?: string };
+    team?: EspnTeam;
+    displayHeight?: string;
+    displayWeight?: string;
+    age?: number;
+    displayBirthPlace?: string;
+    displayJersey?: string;
+    displayDraft?: string;
+  };
+}
+
+interface EspnGamelog {
+  /** Veergude nimed, nt "fieldGoalsMade-fieldGoalsAttempted"; read on samas järjekorras. */
+  names?: string[];
+  events?: Record<
+    string,
+    {
+      gameDate?: string;
+      atVs?: string;
+      homeTeamScore?: string;
+      awayTeamScore?: string;
+      gameResult?: string;
+      opponent?: { abbreviation?: string };
+    }
+  >;
+  seasonTypes?: { displayName?: string; categories?: { events?: { eventId?: string; stats?: string[] }[] }[] }[];
+}
+
+export const isPlayerId = (id: string) => /^\d{1,12}$/.test(id);
+
+// "6' 8\"" -> "203 cm", "230 lbs" -> "104 kg".
+function heightCm(value: string | undefined): string | null {
+  const match = value?.match(/^(\d+)' (\d+)"$/);
+  return match ? `${Math.round((Number(match[1]) * 12 + Number(match[2])) * 2.54)} cm` : null;
+}
+
+function weightKg(value: string | undefined): string | null {
+  const match = value?.match(/^(\d+) lbs$/);
+  return match ? `${Math.round(Number(match[1]) * 0.4536)} kg` : null;
+}
+
+// "2018: Rd 1, Pk 3 (ATL)" -> "2018, 1. ring, 3. valik (ATL)"; muu kuju jääb nagu on.
+function draftText(value: string | undefined): string | null {
+  const match = value?.match(/^(\d{4}): Rd (\d+), Pk (\d+) \((\w+)\)$/);
+  return match ? `${match[1]}, ${match[2]}. ring, ${match[3]}. valik (${match[4]})` : (value ?? null);
+}
+
+/** Mängupäev USA aja järgi nagu mängude nimekirjas. */
+const usGameDay = (iso: string) =>
+  new Intl.DateTimeFormat("sv-SE", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(
+    new Date(iso),
+  );
+
+/** Mängulogi rida ("12-27" visked jne) statistikaks; efektiivsus arvutatakse nagu boxscore'is. */
+function gamelogLine(names: string[], stats: string[]): StatTotals {
+  const value = (name: string) => Number.parseFloat(stats[names.indexOf(name)] ?? "") || 0;
+  const pair = (name: string) => {
+    const [made, attempted] = (stats[names.indexOf(name)] ?? "").split("-").map((part) => Number.parseInt(part, 10) || 0);
+    return [made ?? 0, attempted ?? 0] as const;
+  };
+  const [fgm, fga] = pair("fieldGoalsMade-fieldGoalsAttempted");
+  const [tpm, tpa] = pair("threePointFieldGoalsMade-threePointFieldGoalsAttempted");
+  const [ftm, fta] = pair("freeThrowsMade-freeThrowsAttempted");
+  const line = {
+    min: value("minutes"),
+    pts: value("points"),
+    reb: value("totalRebounds"),
+    ast: value("assists"),
+    stl: value("steals"),
+    blk: value("blocks"),
+    tov: value("turnovers"),
+    fgm,
+    fga,
+    tpm,
+    tpa,
+    ftm,
+    fta,
+  };
+  return { ...line, eff: line.pts + line.reb + line.ast + line.stl + line.blk - (fga - fgm) - (fta - ftm) - line.tov };
+}
+
+/** ESPN-i mängija andmed ja selle hooaja mängulogi (põhiturniir; eelhooaeg ei lähe arvesse nagu mujalgi). */
+export async function getPlayerProfile(id: string): Promise<NbaPlayerProfile | null> {
+  const [profile, gamelog] = await Promise.all([
+    fetchJson<EspnAthleteProfile>(`${ESPN_ATHLETES}/${id}`, { next: { revalidate: PROFILE_REVALIDATE } }),
+    fetchJson<EspnGamelog>(`${ESPN_ATHLETES}/${id}/gamelog`, { next: { revalidate: PROFILE_REVALIDATE } }),
+  ]);
+  const athlete = profile.athlete;
+  if (!athlete?.displayName) return null;
+
+  const names = gamelog.names ?? [];
+  const regular = (gamelog.seasonTypes ?? []).find((type) => /regular season/i.test(type.displayName ?? ""));
+  const rows = (regular?.categories ?? [])
+    .flatMap((category) => category.events ?? [])
+    .flatMap((row) => {
+      const event = row.eventId ? gamelog.events?.[row.eventId] : undefined;
+      return event?.gameDate && row.stats ? [{ event, gameDate: event.gameDate, line: gamelogLine(names, row.stats) }] : [];
+    })
+    .sort((a, b) => Date.parse(b.gameDate) - Date.parse(a.gameDate));
+
+  const games = rows.slice(0, PROFILE_GAMES).map(({ event, gameDate, line }): NbaProfileGame => {
+    const home = event.atVs === "vs";
+    const homeScore = parseScore(event.homeTeamScore);
+    const awayScore = parseScore(event.awayTeamScore);
+    return {
+      date: usGameDay(gameDate),
+      opponent: event.opponent?.abbreviation ?? "?",
+      home,
+      won: event.gameResult === "W" ? true : event.gameResult === "L" ? false : null,
+      teamScore: home ? homeScore : awayScore,
+      opponentScore: home ? awayScore : homeScore,
+      stats: { min: line.min, pts: line.pts, reb: line.reb, ast: line.ast, eff: line.eff },
+    };
+  });
+
+  const team = athlete.team;
+  const bio = [
+    { label: "Vanus", value: typeof athlete.age === "number" ? String(athlete.age) : null },
+    { label: "Pikkus", value: heightCm(athlete.displayHeight) },
+    { label: "Kaal", value: weightKg(athlete.displayWeight) },
+    { label: "Sünnikoht", value: athlete.displayBirthPlace ?? null },
+    { label: "Draft", value: draftText(athlete.displayDraft) },
+  ].flatMap(({ label, value }) => (value ? [{ label, value }] : []));
+
+  return {
+    player: {
+      id,
+      name: athlete.displayName,
+      position: athlete.position?.abbreviation ?? null,
+      headshot: athlete.headshot?.href ?? null,
+      jersey: athlete.displayJersey?.replace(/^#/, "") || null,
+    },
+    team: team?.abbreviation
+      ? {
+          abbreviation: team.abbreviation,
+          name: team.shortDisplayName ?? team.displayName ?? team.abbreviation,
+          logo: teamLogo(team),
+          color: teamColor(team.color),
+        }
+      : null,
+    bio,
+    season: averagesOf(rows.map((row) => row.line)),
+    games,
+  };
+}
 
 // --- Tabel ---
 

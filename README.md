@@ -97,12 +97,13 @@ The header has a clock, the weather in Tallinn and an animated WebGL sky that ch
 
 All four leagues share the same views:
 
-- **Games** for today, 3 days, 7 days, a month or the whole season. Open a finished game for the full boxscore. NBA and EuroLeague games get their YouTube recap, which plays right in the list.
+- **Games** for today, 3 days, 7 days, a month or the whole season. Open a finished game for the full boxscore, including each player's efficiency. NBA and EuroLeague games get their YouTube recap, which plays right in the list.
 - **Best performances**: each player's best game in the chosen period, by efficiency (EFF in the NBA, PIR in the EuroLeague, EF in Est-Lat, FIBA EFF in the Europe Cup), points, rebounds or assists.
 - **MVP race**: season leaders by efficiency per game with their full stat line.
 - **Standings** with home and away records, last 10 games and streaks.
+- **Player profile**: tap a player's name for their bio, season averages and last five games (ESPN and the EuroLeague API; for Est-Lat and the Europe Cup worked out from the boxscores).
 
-The Europe Cup view follows only the three Estonian clubs (Pärnu, Tartu and Kalev): their games, the standings of their groups, and best performances and best players (the MVP race under another name) from their own players. Player photos and club colours come from the Est-Lat league site, where the same clubs play.
+The Europe Cup view follows only the three Estonian clubs (Pärnu, Tartu and Kalev): their games, the standings of their groups, and best performances and best players (the MVP race under another name) from their own players. Player photos and club colours come from the Est-Lat league site, where the same clubs play; players who are not in that league get their FIBA portrait.
 
 <table>
   <tr>

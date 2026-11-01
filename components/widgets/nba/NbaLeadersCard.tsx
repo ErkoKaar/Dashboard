@@ -10,6 +10,7 @@ import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import { NbaLeaderMetric, NbaPerformance, NbaPeriod, NbaStatLine, useNbaLeaders } from "@/lib/queries/useNba";
 import { useRecapPlayer } from "./RecapPlayer";
 import { LeagueConfig, useLeague } from "./league";
+import { PlayerButton, PlayerPreview } from "./PlayerProfile";
 import { Avatar, cardBackground, CountUpNumber, Cutout, StatGrid } from "./shared";
 
 // esthoop.ee "Parimad sooritused" eeskujul: nr 1 on kangelaskaart, 2-3 tiimivärvi kaardid,
@@ -105,6 +106,10 @@ function StatStrip({ stats, metric }: { stats: NbaStatLine; metric: NbaLeaderMet
   );
 }
 
+function previewOf({ player, team }: NbaPerformance): PlayerPreview {
+  return { id: player.id, name: player.name, headshot: player.headshot, team: team.name, color: team.color };
+}
+
 function PodiumCard({
   performance,
   rank,
@@ -156,7 +161,7 @@ function PodiumCard({
               featured ? "text-3xl sm:text-4xl" : "text-xl"
             }`}
           >
-            {player.name}
+            <PlayerButton preview={previewOf(performance)}>{player.name}</PlayerButton>
           </h3>
           <p className="mt-1 text-xs text-white/80">
             {team.name}
@@ -187,8 +192,10 @@ function PerformanceRow({ performance, rank, metric }: { performance: NbaPerform
         <Avatar key={player.headshot ?? player.id} headshot={player.headshot} color={team.color} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">
-            <span className="sm:hidden">{player.shortName}</span>
-            <span className="hidden sm:inline">{player.name}</span>
+            <PlayerButton preview={previewOf(performance)}>
+              <span className="sm:hidden">{player.shortName}</span>
+              <span className="hidden sm:inline">{player.name}</span>
+            </PlayerButton>
           </p>
           <p className="truncate text-xs text-muted">
             {team.name}

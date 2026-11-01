@@ -205,6 +205,35 @@ export interface NbaMvpResponse {
   players: NbaMvpEntry[];
 }
 
+/** Hooaja keskmised (ühe komakohaga), protsendid täisarvudena: sama kuju nagu MVP race'is. */
+export type NbaSeasonAverages = Omit<NbaMvpEntry, "player" | "team">;
+
+/** Profiili üks mäng mängija tiimi vaatest. */
+export interface NbaProfileGame {
+  /** "2026-10-28" */
+  date: string;
+  /** Vastase lühend. */
+  opponent: string;
+  home: boolean;
+  /** null, kui tulemust ei saa välja lugeda. */
+  won: boolean | null;
+  teamScore: number | null;
+  opponentScore: number | null;
+  stats: { min: number; pts: number; reb: number; ast: number; eff: number };
+}
+
+/** app/api/<liiga>/player: mängija profiil (avaneb mängijale vajutades). */
+export interface NbaPlayerProfile {
+  player: { id: string; name: string; position: string | null; headshot: string | null; jersey: string | null };
+  team: { abbreviation: string; name: string; logo: string | null; color: string | null } | null;
+  /** Taustainfo, mida liiga annab ("Vanus": "27"); puuduv rida jääb ära. */
+  bio: { label: string; value: string }[];
+  /** Hooaja keskmised; null, kui hooajal pole veel mänge. */
+  season: NbaSeasonAverages | null;
+  /** Viimased mängud uuemast vanemani (kuni 5). */
+  games: NbaProfileGame[];
+}
+
 /** Tabeli rida. Liigal puuduv väli on null (NBA-l pole vormi ega koha muutust, EuroLeague'il GB-d ja seeriat). */
 export interface NbaStandingsRow {
   position: number;
@@ -323,5 +352,19 @@ export function useNbaStandings(league: League) {
     // Tabel muutub ainult mängude lõppedes; server hoiab seda 5 minutit.
     staleTime: 5 * 60 * 1000,
     refetchInterval: 10 * 60 * 1000,
+  });
+}
+
+/** Profiil laaditakse alles akna avamisel; keskmised muutuvad ainult mängude lõppedes. */
+export function useNbaPlayerProfile(league: League, playerId: string | null) {
+  return useQuery({
+    queryKey: [league, "player", playerId],
+    queryFn: async ({ signal }): Promise<NbaPlayerProfile> => {
+      const res = await apiFetch(`/api/${league}/player?id=${encodeURIComponent(playerId ?? "")}`, { signal });
+      if (!res.ok) throw new Error("Profiili laadimine ebaõnnestus");
+      return res.json();
+    },
+    enabled: playerId !== null,
+    staleTime: 15 * 60 * 1000,
   });
 }

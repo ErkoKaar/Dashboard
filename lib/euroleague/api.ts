@@ -3,6 +3,7 @@ import { assertCompleteBoxscore } from "@/lib/basketball/boxscore";
 import { fetchJson } from "@/lib/basketball/http";
 import { buildLeaders } from "@/lib/basketball/leaders";
 import { groupGameDays } from "@/lib/basketball/period";
+import { ageFrom, averagesOf, PROFILE_GAMES, StatTotals } from "@/lib/basketball/profile";
 import { attachRecaps, getChannelVideos, RecapVideo, withDurations } from "@/lib/basketball/youtube";
 import type {
   NbaBoxscore,
@@ -14,6 +15,8 @@ import type {
   NbaMvpResponse,
   NbaPeriod,
   NbaPlayerLine,
+  NbaPlayerProfile,
+  NbaProfileGame,
   NbaStandingsResponse,
   NbaStandingsRow,
   NbaTeamBox,
@@ -603,6 +606,130 @@ export async function getMvpRace(): Promise<NbaMvpResponse> {
 
   entries.sort((a, b) => b.eff - a.eff || b.pts - a.pts);
   return { season: seasonLabel(season), players: entries.slice(0, MVP_COUNT) };
+}
+
+// --- Mängija profiil ---
+
+interface ElPerson {
+  person?: {
+    name?: string;
+    country?: { name?: string };
+    height?: number;
+    weight?: number;
+    birthDate?: string;
+  };
+  dorsal?: string;
+  positionName?: string;
+  images?: { headshot?: string };
+  club?: ElClub;
+}
+
+interface ElPersonGames {
+  games?: {
+    game?: {
+      utcDate?: string;
+      played?: boolean;
+      local?: { club?: ElClub; score?: number };
+      road?: { club?: ElClub; score?: number };
+    };
+    stats?: ElStatLine;
+    playerClubCode?: string;
+  }[];
+}
+
+const PROFILE_REVALIDATE = 900;
+
+/** Mängija kood on boxscore'i person.code ("013402"). */
+export const isPlayerId = (id: string) => /^[A-Za-z0-9]{1,12}$/.test(id);
+
+function profileLine(s: ElStatLine): StatTotals {
+  return {
+    min: Math.round(num(s.timePlayed) / 60),
+    pts: num(s.points),
+    reb: num(s.totalRebounds),
+    ast: num(s.assistances),
+    stl: num(s.steals),
+    blk: num(s.blocksFavour),
+    tov: num(s.turnovers),
+    fgm: num(s.fieldGoalsMadeTotal),
+    fga: num(s.fieldGoalsAttemptedTotal),
+    tpm: num(s.fieldGoalsMade3),
+    tpa: num(s.fieldGoalsAttempted3),
+    ftm: num(s.freeThrowsMade),
+    fta: num(s.freeThrowsAttempted),
+    eff: num(s.valuation),
+  };
+}
+
+/** Mängija andmed ja selle hooaja mängud EuroLeague'i API-st; keskmised arvutatakse mängitud mängudest. */
+export async function getPlayerProfile(code: string): Promise<NbaPlayerProfile | null> {
+  const season = currentSeason(new Date());
+  const [people, stats] = await Promise.all([
+    fetchJson<{ data?: ElPerson[] }>(`${API}/v2/competitions/${COMPETITION}/seasons/${season}/people/${code}`, {
+      next: { revalidate: PROFILE_REVALIDATE },
+    }),
+    fetchJson<ElPersonGames>(`${API}/v2/competitions/${COMPETITION}/seasons/${season}/people/${code}/stats`, {
+      next: { revalidate: PROFILE_REVALIDATE },
+    }),
+  ]);
+  const entry = people.data?.[0];
+  const rawName = entry?.person?.name;
+  if (!entry || !rawName) return null;
+
+  const rows = (stats.games ?? [])
+    .flatMap(({ game, stats: line, playerClubCode }) =>
+      game?.played && game.utcDate && line && num(line.timePlayed) > 0
+        ? [{ game, utcDate: game.utcDate, line: profileLine(line), club: playerClubCode }]
+        : [],
+    )
+    .sort((a, b) => Date.parse(b.utcDate) - Date.parse(a.utcDate));
+
+  const games = rows.slice(0, PROFILE_GAMES).map(({ game, utcDate, line, club }): NbaProfileGame => {
+    const home = game.local?.club?.code === club;
+    const [own, other] = home ? [game.local, game.road] : [game.road, game.local];
+    const teamScore = typeof own?.score === "number" ? own.score : null;
+    const opponentScore = typeof other?.score === "number" ? other.score : null;
+    return {
+      date: tallinnDate(utcDate),
+      opponent: other?.club?.tvCode ?? other?.club?.code ?? "?",
+      home,
+      won: teamScore !== null && opponentScore !== null && teamScore !== opponentScore ? teamScore > opponentScore : null,
+      teamScore,
+      opponentScore,
+      stats: { min: line.min, pts: line.pts, reb: line.reb, ast: line.ast, eff: line.eff },
+    };
+  });
+
+  const person = entry.person ?? {};
+  const age = ageFrom(person.birthDate, new Date());
+  const bio = [
+    { label: "Vanus", value: age !== null ? String(age) : null },
+    { label: "Pikkus", value: person.height ? `${person.height} cm` : null },
+    { label: "Kaal", value: person.weight ? `${person.weight} kg` : null },
+    { label: "Riik", value: person.country?.name ?? null },
+  ].flatMap(({ label, value }) => (value ? [{ label, value }] : []));
+
+  const club = entry.club;
+  return {
+    player: {
+      id: code,
+      name: personName(rawName),
+      position: positionLetter(entry.positionName),
+      headshot: entry.images?.headshot ?? null,
+      jersey: entry.dorsal || null,
+    },
+    team: club?.code
+      ? {
+          abbreviation: club.tvCode ?? club.code,
+          name: club.abbreviatedName ?? club.name ?? club.code,
+          logo: club.images?.crest ?? null,
+          color: clubColor(club.code),
+        }
+      : null,
+    bio,
+    season: averagesOf(rows.map((row) => row.line)),
+    games,
+  };
 }
 
 // --- Tabel ---

@@ -3,6 +3,7 @@ import { assertCompleteBoxscore } from "@/lib/basketball/boxscore";
 import { fetchText, settleWithLimit } from "@/lib/basketball/http";
 import { buildLeaders } from "@/lib/basketball/leaders";
 import { groupGameDays } from "@/lib/basketball/period";
+import { profileFromBoxscores } from "@/lib/basketball/profile";
 import type {
   NbaBoxscore,
   NbaGame,
@@ -14,6 +15,7 @@ import type {
   NbaPerformance,
   NbaPeriod,
   NbaPlayerLine,
+  NbaPlayerProfile,
   NbaStandingsResponse,
   NbaStandingsRow,
   NbaTeamBox,
@@ -628,6 +630,37 @@ export async function getMvpRace(): Promise<NbaMvpResponse> {
     .sort((a, b) => b.eff - a.eff || b.pts - a.pts);
 
   return { season: seasonLabel(new Date(now)), players: entries.slice(0, MVP_COUNT) };
+}
+
+// --- Mängija profiil ---
+
+/** Mängija id on "<klubikood>-<nimi>" (boxscore'i tabelist, nt "TAR-keith-palek-iii"). */
+export const isPlayerId = (id: string) => /^[A-Z0-9]{2,5}-[a-z0-9-]{2,80}$/.test(id);
+
+/**
+ * Profiil mängija klubi lõppenud mängude boxscore'idest (vahemälus; liiga hooaja keskmisi mängija kaupa
+ * ei avalda). Foto nagu Europe Cupis: galeriist või mängija oma lehelt. Mängijat ei leitud: null.
+ */
+export async function getPlayerProfile(id: string): Promise<NbaPlayerProfile | null> {
+  const club = id.slice(0, id.indexOf("-"));
+  const { games } = await seasonGames(Date.now());
+  const played = games.filter((game) => game.completed && (game.home.abbreviation === club || game.away.abbreviation === club));
+  const boxscores = await settleWithLimit(played, BOXSCORE_CONCURRENCY, (game) => cachedFinalBoxscore(game.id));
+  const profile = profileFromBoxscores(
+    id,
+    played.flatMap((game, i) => {
+      const boxscore = boxscores[i];
+      return boxscore ? [{ game, boxscore }] : [];
+    }),
+  );
+  if (!profile) return null;
+
+  const photos = await clubPlayerPhotos([{ name: profile.player.name, club }]);
+  return {
+    ...profile,
+    player: { ...profile.player, headshot: photos.get(profile.player.name) ?? null },
+    team: profile.team && { ...profile.team, color: clubColor(profile.team.abbreviation) },
+  };
 }
 
 // --- Tabel ---

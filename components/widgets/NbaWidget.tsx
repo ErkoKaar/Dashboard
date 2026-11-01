@@ -5,6 +5,7 @@ import { League, NbaPeriod } from "@/lib/queries/useNba";
 import { NbaGamesCard } from "./nba/NbaGamesCard";
 import { NbaLeadersCard } from "./nba/NbaLeadersCard";
 import { NbaMvpRace, PrefetchMvpRace } from "./nba/NbaMvpRace";
+import { PlayerProfileProvider } from "./nba/PlayerProfile";
 import { RecapPlayerProvider } from "./nba/RecapPlayer";
 import { StandingsCard } from "./nba/StandingsCard";
 import { leagueConfig, LeagueProvider } from "./nba/league";
@@ -65,45 +66,47 @@ function BasketballWidget({ league }: { league: League }) {
   return (
     <LeagueProvider league={league}>
       <RecapPlayerProvider>
-        {view !== "mvp" && <PrefetchMvpRace />}
-        <div className="flex flex-col gap-5">
-          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
-            {/* "Parimad mängijad" (Europe Cup) ei mahu telefonis teistega ühele reale: viimane vaade läheb alla. */}
-            <div role="group" aria-label="Vaade" className="flex flex-wrap items-baseline gap-x-5 gap-y-1 sm:gap-x-7">
-              {VIEWS.map(({ id, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setView(id)}
-                  aria-pressed={view === id}
-                  className={`cursor-pointer whitespace-nowrap rounded font-display text-3xl font-semibold tracking-[-0.03em] transition-colors duration-200 [font-stretch:85%] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-bright sm:text-4xl ${
-                    view === id ? "text-foreground" : "text-muted/50 hover:text-muted"
-                  }`}
-                >
-                  {id === "mvp" ? mvpLabel : label}
-                </button>
-              ))}
+        <PlayerProfileProvider>
+          {view !== "mvp" && <PrefetchMvpRace />}
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
+              {/* "Parimad mängijad" (Europe Cup) ei mahu telefonis teistega ühele reale: viimane vaade läheb alla. */}
+              <div role="group" aria-label="Vaade" className="flex flex-wrap items-baseline gap-x-5 gap-y-1 sm:gap-x-7">
+                {VIEWS.map(({ id, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setView(id)}
+                    aria-pressed={view === id}
+                    className={`cursor-pointer whitespace-nowrap rounded font-display text-3xl font-semibold tracking-[-0.03em] transition-colors duration-200 [font-stretch:85%] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-bright sm:text-4xl ${
+                      view === id ? "text-foreground" : "text-muted/50 hover:text-muted"
+                    }`}
+                  >
+                    {id === "mvp" ? mvpLabel : label}
+                  </button>
+                ))}
+              </div>
+              {view === "games" && <PeriodSwitch period={period} onChange={setPeriod} />}
             </div>
-            {view === "games" && <PeriodSwitch period={period} onChange={setPeriod} />}
-          </div>
 
-          {view === "games" ? (
-            <div className="grid grid-cols-12 items-start gap-5">
-              {/* items-start: kaardid on oma sisu kõrgused. Parimate soorituste veerg on palju pikem, seega
-                  jääb mängude kaart laial ekraanil kerimisel paigale, et vasakule ei tekiks tühja ala. */}
-              <div className="col-span-12 lg:sticky lg:top-6 lg:col-span-7">
-                <NbaGamesCard period={period} />
+            {view === "games" ? (
+              <div className="grid grid-cols-12 items-start gap-5">
+                {/* items-start: kaardid on oma sisu kõrgused. Parimate soorituste veerg on palju pikem, seega
+                    jääb mängude kaart laial ekraanil kerimisel paigale, et vasakule ei tekiks tühja ala. */}
+                <div className="col-span-12 lg:sticky lg:top-6 lg:col-span-7">
+                  <NbaGamesCard period={period} />
+                </div>
+                <div className="col-span-12 lg:col-span-5">
+                  <NbaLeadersCard period={period} />
+                </div>
               </div>
-              <div className="col-span-12 lg:col-span-5">
-                <NbaLeadersCard period={period} />
-              </div>
-            </div>
-          ) : view === "mvp" ? (
-            <NbaMvpRace />
-          ) : (
-            <StandingsCard />
-          )}
-        </div>
+            ) : view === "mvp" ? (
+              <NbaMvpRace />
+            ) : (
+              <StandingsCard />
+            )}
+          </div>
+        </PlayerProfileProvider>
       </RecapPlayerProvider>
     </LeagueProvider>
   );

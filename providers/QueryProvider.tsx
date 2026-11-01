@@ -8,8 +8,8 @@ import type { League } from "@/lib/queries/useNba";
 
 // Korvpallivaadete (NBA, EuroLeague, Est-Lat, Europe Cup) andmed jäävad brauserisse alles: lehe uuel avamisel on
 // mängud, parimad sooritused, MVP race ja tabel kohe näha ning värske seis tuleb taustal (andmed on
-// taastamisel vananenud, nii et päringud käivad kohe uuesti). Boxscore'e ei salvestata, et maht ei
-// kasvaks mängude kaupa.
+// taastamisel vananenud, nii et päringud käivad kohe uuesti). Boxscore'e ja mängijate profiile ei
+// salvestata, et maht ei kasvaks mängude ja mängijate kaupa.
 const PERSISTED_LEAGUES: readonly League[] = ["nba", "euroleague", "estlat", "europecup"];
 const PERSIST_MAX_AGE = 24 * 60 * 60 * 1000;
 // Muuda, kui mõne vastuse kuju muutub: vana salvestus visatakse siis ära, mitte ei näidata valel kujul.
@@ -20,7 +20,8 @@ function shouldPersist(query: Query): boolean {
   return (
     query.state.status === "success" &&
     PERSISTED_LEAGUES.includes(league as League) &&
-    kind !== "boxscore"
+    kind !== "boxscore" &&
+    kind !== "player"
   );
 }
 

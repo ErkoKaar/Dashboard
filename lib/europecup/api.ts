@@ -3,6 +3,7 @@ import { assertCompleteBoxscore } from "@/lib/basketball/boxscore";
 import { fetchText, settleWithLimit } from "@/lib/basketball/http";
 import { buildLeaders } from "@/lib/basketball/leaders";
 import { groupGameDays } from "@/lib/basketball/period";
+import { profileFromBoxscores } from "@/lib/basketball/profile";
 import { clubPlayerPhotos } from "@/lib/estlat/api";
 import { clubColor } from "@/lib/estlat/colors";
 import type {
@@ -16,6 +17,7 @@ import type {
   NbaPerformance,
   NbaPeriod,
   NbaPlayerLine,
+  NbaPlayerProfile,
   NbaStandingsGroup,
   NbaStandingsResponse,
   NbaStandingsRow,
@@ -513,6 +515,14 @@ const EST_LAT_CLUBS: [RegExp, string][] = [
 
 const estLatClub = (teamName: string) => EST_LAT_CLUBS.find(([pattern]) => pattern.test(teamName))?.[1];
 
+/**
+ * FIBA portree (valgel taustal) mängijale, kellel Est-Lat fotot pole: vastased ja Eesti klubide mängijad,
+ * kes Est-Lat liigas ei mängi. Mõnel on koondise särgis foto, seepärast on Est-Lat klubifoto eelistatud.
+ * Puuduva portree korral annab FIBA 404 ja vaade jätab pildi ära.
+ */
+const fibaHeadshot = (personId: string) =>
+  `${ASSETS}/w_400,h_400,c_fill,g_face/.headshot--person_${encodeURIComponent(personId)}`;
+
 /** Est-Lat fotod mängijatele, kelle klubi mängib Est-Lat liigas (nimi -> foto). */
 async function photosFor(players: { name: string; team: string }[]): Promise<Map<string, string>> {
   const wanted = players.flatMap((player) => {
@@ -536,7 +546,7 @@ async function withPhotos(boxscore: NbaBoxscore): Promise<NbaBoxscore> {
     teams: boxscore.teams.map((team) => ({
       ...team,
       color: clubColor(estLatClub(team.name)),
-      players: team.players.map((line) => ({ ...line, headshot: photos.get(line.name) ?? null })),
+      players: team.players.map((line) => ({ ...line, headshot: photos.get(line.name) ?? fibaHeadshot(line.id) })),
     })),
   };
 }
@@ -584,7 +594,10 @@ export async function getLeaders(period: NbaPeriod): Promise<NbaLeadersResponse>
   );
   const withPhoto = (performance: NbaPerformance): NbaPerformance => ({
     ...performance,
-    player: { ...performance.player, headshot: photos.get(performance.player.name) ?? null },
+    player: {
+      ...performance.player,
+      headshot: photos.get(performance.player.name) ?? fibaHeadshot(performance.player.id),
+    },
     team: { ...performance.team, color: clubColor(estLatClub(performance.team.name)) },
   });
   const top = Object.fromEntries(
@@ -674,8 +687,44 @@ export async function getMvpRace(): Promise<NbaMvpResponse> {
     .slice(0, MVP_COUNT);
 
   const photos = await photosFor(entries.map((entry) => ({ name: entry.player.name, team: entry.team.name })));
-  const players = entries.map((entry) => ({ ...entry, player: { ...entry.player, headshot: photos.get(entry.player.name) ?? null } }));
+  const players = entries.map((entry) => ({
+    ...entry,
+    player: { ...entry.player, headshot: photos.get(entry.player.name) ?? fibaHeadshot(entry.player.id) },
+  }));
   return { season: seasonLabel(start), players };
+}
+
+// --- Mängija profiil ---
+
+/** Mängija id on FIBA personId. */
+export const isPlayerId = (id: string) => /^\d{3,9}$/.test(id);
+
+/**
+ * Profiil Eesti klubide lõppenud mängude boxscore'idest (vahemälus): Eesti klubi mängijal terve hooaeg,
+ * vastasel ainult mängud Eesti klubide vastu. Mängijat ei leitud: null.
+ */
+export async function getPlayerProfile(id: string): Promise<NbaPlayerProfile | null> {
+  const now = Date.now();
+  const raw = await fetchSeasonGames(eventPath(seasonStart(new Date(now))));
+  const records = recordsOf(raw);
+  const played = raw.filter((game) => isOurGame(game) && isFinal(game)).flatMap((game) => toGame(game, records, now) ?? []);
+  const boxscores = await settleWithLimit(played, BOXSCORE_CONCURRENCY, (game) => cachedFinalBoxscore(game.id));
+  const profile = profileFromBoxscores(
+    id,
+    played.flatMap((game, i) => {
+      const boxscore = boxscores[i];
+      return boxscore ? [{ game, boxscore }] : [];
+    }),
+  );
+  if (!profile) return null;
+
+  const team = profile.team;
+  const photos = await photosFor([{ name: profile.player.name, team: team?.name ?? "" }]);
+  return {
+    ...profile,
+    player: { ...profile.player, headshot: photos.get(profile.player.name) ?? fibaHeadshot(id) },
+    team: team && { ...team, color: clubColor(estLatClub(team.name)) },
+  };
 }
 
 // --- Tabel ---

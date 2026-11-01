@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { NbaGame, NbaPlayerLine, NbaTeamBox, useNbaBoxscore } from "@/lib/queries/useNba";
 import { useLeague } from "./league";
+import { PlayerButton } from "./PlayerProfile";
 import { TeamLogo } from "./media";
 
 type StatLine = Omit<NbaPlayerLine, "id" | "name" | "shortName" | "position" | "headshot" | "starter" | "didNotPlay">;
@@ -14,7 +15,14 @@ function formatPlusMinus(value: number | null): string {
   return value > 0 ? `+${value}` : String(value);
 }
 
-const COLUMNS: { label: string; title: string; value: (line: StatLine) => string; strong?: boolean }[] = [
+interface Column {
+  label: string;
+  title: string;
+  value: (line: StatLine) => string;
+  strong?: boolean;
+}
+
+const COLUMNS: Column[] = [
   { label: "MIN", title: "Minutid", value: (l) => String(l.min) },
   { label: "PTS", title: "Punktid", value: (l) => String(l.pts), strong: true },
   { label: "REB", title: "Lauapallid", value: (l) => String(l.reb) },
@@ -57,6 +65,12 @@ const SURFACE = "bg-[rgb(10_18_23)]";
 const STICKY_CELL = `sticky left-0 z-[1] ${SURFACE}`;
 
 function TeamTable({ team }: { team: NbaTeamBox }) {
+  const league = useLeague();
+  // Viimane veerg on liiga efektiivsus (EFF, PIR, EF): sama mõõdik, mille järgi on parimad sooritused.
+  const columns: Column[] = [
+    ...COLUMNS,
+    { label: league.effLabel, title: league.effTitle, value: (l) => String(l.eff), strong: true },
+  ];
   const played = team.players.filter((p) => !p.didNotPlay);
   const benched = team.players.filter((p) => p.didNotPlay);
   const benchStart = played.findIndex((p) => !p.starter);
@@ -69,13 +83,13 @@ function TeamTable({ team }: { team: NbaTeamBox }) {
         {team.name}
       </h4>
       <div className={`overflow-x-auto rounded-xl ring-1 ring-white/[0.06] ${SURFACE}`}>
-        <table className="w-full min-w-[40rem] text-xs tabular-nums">
+        <table className="w-full min-w-[43rem] text-xs tabular-nums">
           <thead>
             <tr className="text-muted">
               <th scope="col" className={`${STICKY_CELL} py-2 pl-3 pr-2 text-left font-medium`}>
                 Mängija
               </th>
-              {COLUMNS.map((column) => (
+              {columns.map((column) => (
                 <th key={column.label} scope="col" className="px-2 py-2 text-right font-medium">
                   <abbr title={column.title} className="no-underline">
                     {column.label}
@@ -92,10 +106,14 @@ function TeamTable({ team }: { team: NbaTeamBox }) {
                 className={`border-t ${i === benchStart && i > 0 ? "border-white/20" : "border-white/[0.05]"}`}
               >
                 <th scope="row" className={`${STICKY_CELL} whitespace-nowrap py-1.5 pl-3 pr-2 text-left font-normal text-foreground`}>
-                  {player.shortName}
+                  <PlayerButton
+                    preview={{ id: player.id, name: player.name, headshot: player.headshot, team: team.shortName, color: team.color }}
+                  >
+                    {player.shortName}
+                  </PlayerButton>
                   {player.position && <span className="ml-1.5 text-muted/70">{player.position}</span>}
                 </th>
-                {COLUMNS.map((column) => (
+                {columns.map((column) => (
                   <td
                     key={column.label}
                     className={`whitespace-nowrap px-2 py-1.5 text-right ${column.strong ? "font-medium text-foreground" : "text-foreground/75"}`}
@@ -111,7 +129,7 @@ function TeamTable({ team }: { team: NbaTeamBox }) {
               <th scope="row" className={`${STICKY_CELL} py-2 pl-3 pr-2 text-left font-medium`}>
                 Kokku
               </th>
-              {COLUMNS.map((column) => (
+              {columns.map((column) => (
                 <td key={column.label} className="whitespace-nowrap px-2 py-2 text-right font-medium">
                   {column.label === "MIN" || column.label === "+/-" ? "" : column.value(totals)}
                 </td>

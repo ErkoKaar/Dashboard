@@ -2,13 +2,14 @@
 
 import { ReactNode, RefObject, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, Crown, RotateCw } from "lucide-react";
+import { ChevronDown, ChevronUp, Crown, RotateCw, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import { mvpRaceQuery, NbaMvpEntry, useNbaMvpRace } from "@/lib/queries/useNba";
 import { LeagueConfig, useLeague } from "./league";
+import { usePlayerProfile } from "./PlayerProfile";
 import { Avatar, cardBackground, CountUpNumber, Cutout, preloadCutout, StatCell, StatGrid, teamToneCss } from "./shared";
 
 // MVP race: hooaja 10 parimat EFF järgi. Iga mängija on vaikne rida, mille all joon näitab EFF-i
@@ -60,6 +61,7 @@ function PlayerCard({
   onClose: () => void;
 }) {
   const league = useLeague();
+  const openProfile = usePlayerProfile();
   const { player, team } = entry;
   const teamRecord = record(entry);
   return (
@@ -78,6 +80,17 @@ function PlayerCard({
         <span className="sr-only">Sulge {player.name} kaart</span>
       </button>
       <ChevronUp className="absolute right-4 top-4 z-[1] h-5 w-5 text-white/70" aria-hidden />
+      {/* Sulgemisnupu kohal: avab profiili (bio ja viimased mängud), kaart jääb lahti. */}
+      <button
+        type="button"
+        onClick={() =>
+          openProfile({ id: player.id, name: player.name, headshot: player.headshot, team: team.name, color: team.color })
+        }
+        className="absolute right-12 top-3 z-20 inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full bg-black/25 px-3 text-xs font-medium text-white/90 transition-colors duration-200 hover:bg-black/40 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-bright"
+      >
+        <UserRound className="h-3.5 w-3.5" aria-hidden />
+        Profiil
+      </button>
 
       <div className="relative flex min-h-[14rem] flex-col justify-between p-5 sm:min-h-[17rem] sm:p-6">
         <span
