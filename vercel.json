@@ -1,4 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["fra1"]
+  "regions": ["fra1"],
+  "crons": [
+    { "path": "/api/basketball/refresh", "schedule": "0 22 * * *" },
+    { "path": "/api/basketball/refresh", "schedule": "0 4 * * *" }
+  ]
 }
