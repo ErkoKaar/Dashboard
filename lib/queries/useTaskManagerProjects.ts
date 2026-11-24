@@ -72,6 +72,33 @@ export function useDeleteTaskManagerProject() {
   });
 }
 
+export function useRenameTaskManagerProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, title }: { id: string; title: string }) => {
+      const { error } = await getTasksClient()
+        .from("taskmanager_projects")
+        .update({ title })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    // Optimistlik, et uus nimi paistaks kohe; vea korral tuleb vana tagasi.
+    onMutate: async ({ id, title }) => {
+      await queryClient.cancelQueries({ queryKey: PROJECTS_KEY });
+      const previous = queryClient.getQueryData<TaskManagerProject[]>(PROJECTS_KEY);
+      queryClient.setQueryData<TaskManagerProject[]>(PROJECTS_KEY, (current) =>
+        current?.map((project) => (project.id === id ? { ...project, title } : project)),
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      queryClient.setQueryData(PROJECTS_KEY, context?.previous);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: PROJECTS_KEY }),
+  });
+}
+
 /** Salvestab kogu nimekirja uue järjekorra ühe päringuga; `ordered` on soovitud järjestuses. */
 export function useReorderTaskManagerProjects() {
   const queryClient = useQueryClient();

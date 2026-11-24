@@ -59,6 +59,7 @@ import {
   TaskManagerProject,
   useAddTaskManagerProject,
   useDeleteTaskManagerProject,
+  useRenameTaskManagerProject,
   useReorderTaskManagerProjects,
   useTaskManagerProjects,
 } from "@/lib/queries/useTaskManagerProjects";
@@ -377,14 +378,29 @@ function LaterDivider({ count }: { count: number }) {
 
 function SortableProjectRow({
   project,
+  onRename,
   onDelete,
 }: {
   project: TaskManagerProject;
+  onRename: (title: string) => void;
   onDelete: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: project.id,
   });
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState("");
+
+  function startEdit() {
+    setEditValue(project.title);
+    setEditing(true);
+  }
+
+  function commitEdit() {
+    const title = editValue.trim();
+    if (title && title !== project.title) onRename(title);
+    setEditing(false);
+  }
 
   return (
     <li
@@ -395,12 +411,30 @@ function SortableProjectRow({
       }`}
     >
       <DragHandle {...attributes} {...listeners} />
-      <span
-        className="min-w-0 flex-1 truncate text-base font-bold leading-6 text-foreground"
-        title={project.title}
-      >
-        {project.title}
-      </span>
+      {editing ? (
+        <input
+          autoFocus
+          className="-mb-px min-w-0 flex-1 border-b border-accent bg-transparent text-base font-bold leading-6 text-foreground outline-none"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={commitEdit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commitEdit();
+            if (e.key === "Escape") setEditing(false);
+          }}
+          maxLength={200}
+          aria-label="Projekti nimi"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={startEdit}
+          className="min-w-0 flex-1 cursor-text text-left text-base font-bold leading-6 text-foreground"
+          title={project.title}
+        >
+          <span className="block truncate">{project.title}</span>
+        </button>
+      )}
       <DeleteButton onDelete={onDelete} label="Eemalda projekt" />
     </li>
   );
@@ -411,6 +445,7 @@ function ActiveProjects() {
   const projectsQuery = useTaskManagerProjects();
   const addProject = useAddTaskManagerProject();
   const deleteProject = useDeleteTaskManagerProject();
+  const renameProject = useRenameTaskManagerProject();
   const reorderProjects = useReorderTaskManagerProjects();
 
   const [title, setTitle] = useState("");
@@ -484,6 +519,7 @@ function ActiveProjects() {
                   <SortableProjectRow
                     key={project.id}
                     project={project}
+                    onRename={(title) => renameProject.mutate({ id: project.id, title })}
                     onDelete={() => deleteProject.mutate(project.id)}
                   />
                 ))}
