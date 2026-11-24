@@ -1,7 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Check, GripVertical, ListChecks, Plus, X } from "lucide-react";
+import { ComponentType, MouseEvent, SVGProps, useRef, useState } from "react";
+import {
+  CalendarDays,
+  CalendarSearch,
+  GripVertical,
+  ListChecks,
+  Plus,
+  RotateCcw,
+  X,
+} from "lucide-react";
 import {
   DndContext,
   DragEndEvent,
@@ -21,39 +29,34 @@ import { Card } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import { CheckToggle } from "@/components/ui/CheckToggle";
-import { Button } from "@/components/ui/Button";
-import { Dropdown, DropdownOption } from "@/components/ui/Dropdown";
 import { useAddTask, useDeleteTask, useTodayTasks, useUpdateTask } from "@/lib/queries/useTodayTasks";
 import {
   Criticality,
   useAddProjectTask,
   useAllProjectTasks,
   useDeleteProjectTask,
-  useMoveTaskToProject,
   useProjects,
   useToggleProjectTask,
   useUpdateProjectTaskCriticality,
   useUpdateProjectTaskDueDate,
-  useUpdateProjectTaskProject,
   useUpdateProjectTaskTitle,
 } from "@/lib/queries/useProjects";
 import { useTaskManagerOrder, useUpdateTaskManagerOrder } from "@/lib/queries/useTaskManagerOrder";
 import { scoreBadge } from "@/lib/dailyScoreStatus";
+import { nextDate, todayDate } from "@/lib/date";
 
-type FilterKey = "today" | "personal" | "projects";
-
-const FILTERS: { key: FilterKey; label: string }[] = [
-  { key: "today", label: "Today's tasks" },
-  { key: "personal", label: "Personal projects" },
-  { key: "projects", label: "Projects" },
-];
-
-const FILTERS_STORAGE_KEY = "taskmanager-filters";
+type TaskSource = "today" | "personal" | "projects";
 
 const CRITICALITY_CLASS: Record<Criticality, string> = {
   on_track: "bg-positive",
   warning: "bg-warning",
   critical: "bg-destructive",
+};
+
+const CRITICALITY_LABEL: Record<Criticality, string> = {
+  on_track: "graafikus",
+  warning: "hoiatus",
+  critical: "kriitiline",
 };
 
 const CRITICALITY_ORDER: Criticality[] = ["on_track", "warning", "critical"];
@@ -63,27 +66,18 @@ function nextCriticality(current: Criticality): Criticality {
   return CRITICALITY_ORDER[(i + 1) % CRITICALITY_ORDER.length];
 }
 
-interface ProjectOption {
-  id: string;
-  label: string;
-}
-
 interface TaskItem {
   key: string;
-  source: FilterKey;
-  projectId?: string;
+  source: TaskSource;
   title: string;
   done: boolean;
-  label: string;
+  /** Ainult projekti-taskil; päevataskil kriitilisust pole. */
   criticality?: Criticality;
   /** Päev, mil task ilmub Today's Tasks alla; ainult projekti-taskil. */
   dueDate: string | null;
-  projectOptions: ProjectOption[];
-  projectValue: string;
   onToggle: () => void;
   onRename: (title: string) => void;
   onDelete: () => void;
-  onChangeProject: (id: string) => void;
   onCycleCriticality?: () => void;
   /** Puudub päevataskil — tema kuupäev on tasks-tabeli rida ise. */
   onSetDueDate?: (date: string | null) => void;
@@ -104,96 +98,113 @@ function defaultCompare(a: TaskItem, b: TaskItem): number {
   return a.dueDate < b.dueDate ? -1 : 1;
 }
 
-const DATE_INPUT_CLASS =
-  "shrink-0 rounded-lg border border-border/60 bg-transparent px-2 py-1 font-mono text-xs text-muted outline-none transition-colors duration-200 [color-scheme:dark] hover:text-foreground focus:border-accent";
+const DAY_FORMAT = new Intl.DateTimeFormat("et-EE", { day: "numeric", month: "short" });
+const DAY_YEAR_FORMAT = new Intl.DateTimeFormat("et-EE", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
 
-// max-h-48 + ääred; kaardil on overflow-hidden, nii et alumiste ridade menüü
-// tuleb avada ülespoole, muidu jääb see kaardi serva taha kinni.
-const PROJECT_MENU_HEIGHT = 200;
+/** "2026-11-25" → "Täna", "Homme" või "25. nov"; teise aasta kuupäev koos aastaga. */
+function formatDay(iso: string): string {
+  const today = todayDate();
+  if (iso === today) return "Täna";
+  if (iso === nextDate(today)) return "Homme";
 
-/** Projektisilt, mis avab klõpsates projektide nimekirja. */
-function ProjectPill({ item }: { item: TaskItem }) {
-  const [open, setOpen] = useState(false);
-  const [openUp, setOpenUp] = useState(false);
-  const ref = useRef<HTMLSpanElement>(null);
+  const [year, month, day] = iso.split("-").map(Number);
+  // Kohalik kuupäev — new Date("YYYY-MM-DD") oleks UTC ja nihkuks ajavööndiga.
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return iso;
+  return (year === new Date().getFullYear() ? DAY_FORMAT : DAY_YEAR_FORMAT).format(date);
+}
 
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
-
-  function toggleMenu() {
-    if (!open) {
-      const pill = ref.current?.getBoundingClientRect();
-      const list = ref.current?.closest("ul")?.getBoundingClientRect();
-      setOpenUp(!!pill && !!list && list.bottom - pill.bottom < PROJECT_MENU_HEIGHT);
-    }
-    setOpen((v) => !v);
+/** Nähtamatu kuupäevavälja klõps avab kalendri kogu välja ulatuses, mitte ainult ikoonil. */
+function openPicker(e: MouseEvent<HTMLInputElement>) {
+  try {
+    e.currentTarget.showPicker();
+  } catch {
+    // Brauser ilma showPicker'ita avab kalendri oma vaikekäitumisega.
   }
+}
+
+interface DateFieldProps {
+  /** ISO kuupäev või tühi string. */
+  value: string;
+  onChange: (value: string) => void;
+  /** Nimi ekraanilugejale ja kohtspikrina; nähtavat silti pole. */
+  label: string;
+  /** Tühja välja ikoon; vaikimisi kalender. */
+  icon?: ComponentType<SVGProps<SVGSVGElement>>;
+  /** Kui antud, tekib valitud kuupäeva kõrvale tühjendamise nupp. */
+  clearLabel?: string;
+  /** Valitud kuupäeva välimus. */
+  activeClass?: string;
+  /** Tühi väli ilmub alles rea hõljumisel või fookuses; puuteekraanil on õrnalt näha. */
+  revealOnRowHover?: boolean;
+}
+
+/**
+ * Kuupäev vaikse tekstina, tühjana kalendriikoon. Päris `<input type="date">` on
+ * nähtamatult peal, nii et valija, klaviatuur ja ekraanilugeja töötavad nagu ikka.
+ */
+function DateField({
+  value,
+  onChange,
+  label,
+  icon: Icon = CalendarDays,
+  clearLabel,
+  activeClass = "text-muted hover:text-foreground",
+  revealOnRowHover = false,
+}: DateFieldProps) {
+  const emptyClass = `text-muted hover:bg-surface-hover/60 hover:text-foreground ${
+    revealOnRowHover
+      ? "opacity-0 focus-within:opacity-100 group-hover/row:opacity-100 [@media(hover:none)]:opacity-40"
+      : ""
+  }`;
 
   return (
     <span
-      ref={ref}
-      className={`relative flex shrink-0 items-center gap-2 rounded-full border border-border/60 px-2.5 py-1 ${
-        item.done ? "opacity-50" : ""
+      className={`flex h-7 shrink-0 items-center rounded-lg font-mono text-xs transition-[color,background-color,opacity] duration-200 focus-within:ring-1 focus-within:ring-accent/70 ${
+        value ? activeClass : emptyClass
       }`}
     >
-      <button
-        type="button"
-        onClick={toggleMenu}
-        className="cursor-pointer text-xs uppercase tracking-wide text-muted transition-colors duration-200 hover:text-foreground"
-        aria-label={`Projekt: ${item.label} (klõpsa vahetamiseks)`}
-      >
-        {item.label}
-      </button>
-      {item.criticality &&
-        (item.onCycleCriticality ? (
-          <button
-            type="button"
-            onClick={item.onCycleCriticality}
-            className={`h-3 w-3 shrink-0 cursor-pointer rounded-full ${CRITICALITY_CLASS[item.criticality]}`}
-            aria-label={`Kriitilisus: ${item.criticality} (klõpsa muutmiseks)`}
-          />
-        ) : (
-          <span
-            className={`h-3 w-3 rounded-full ${CRITICALITY_CLASS[item.criticality]}`}
-            aria-label={`Kriitilisus: ${item.criticality}`}
-          />
-        ))}
-
-      {open && (
-        <div
-          className={`pop-in absolute right-0 z-20 max-h-48 w-44 overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)] ${
-            openUp ? "bottom-[calc(100%+4px)] origin-bottom-right" : "top-[calc(100%+4px)] origin-top-right"
-          }`}
+      <span className="relative flex h-full items-center whitespace-nowrap px-1.5">
+        {value ? formatDay(value) : <Icon className="h-4 w-4" aria-hidden />}
+        <input
+          type="date"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onClick={openPicker}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0 [color-scheme:dark]"
+          aria-label={label}
+          title={label}
+        />
+      </span>
+      {clearLabel && value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className="-ml-0.5 flex h-full cursor-pointer items-center pr-1.5 opacity-60 transition-opacity duration-200 hover:opacity-100"
+          aria-label={clearLabel}
+          title={clearLabel}
         >
-          {item.projectOptions.map((o) => (
-            <button
-              key={o.id}
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                if (o.id !== item.projectValue) item.onChangeProject(o.id);
-              }}
-              className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors duration-200 ${
-                o.id === item.projectValue
-                  ? "bg-surface-hover text-foreground"
-                  : "text-muted hover:bg-surface-hover/60 hover:text-foreground"
-              }`}
-            >
-              <span className="truncate">{o.label}</span>
-              {o.id === item.projectValue && (
-                <Check className="h-3 w-3 shrink-0 text-accent" aria-hidden />
-              )}
-            </button>
-          ))}
-        </div>
+          <X className="h-3.5 w-3.5" aria-hidden />
+        </button>
       )}
     </span>
+  );
+}
+
+function DeleteButton({ onDelete }: { onDelete: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onDelete}
+      className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted opacity-0 transition-[color,opacity] duration-200 hover:text-destructive focus-visible:opacity-100 group-hover/row:opacity-100 [@media(hover:none)]:opacity-50"
+      aria-label="Kustuta task"
+    >
+      <X className="h-4 w-4" aria-hidden />
+    </button>
   );
 }
 
@@ -219,7 +230,7 @@ function SortableTaskRow({ item }: { item: TaskItem }) {
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`group/row flex items-center gap-3 py-2.5 transition-colors duration-200 hover:bg-surface-hover/25 ${
+      className={`group/row flex min-h-14 items-center gap-2 py-3 transition-colors duration-200 hover:bg-surface-hover/25 sm:gap-3 ${
         isDragging ? "relative z-10 bg-surface opacity-90" : ""
       }`}
     >
@@ -227,20 +238,16 @@ function SortableTaskRow({ item }: { item: TaskItem }) {
         type="button"
         {...attributes}
         {...listeners}
-        className="-ml-1 shrink-0 cursor-grab touch-none p-0.5 text-muted opacity-40 transition-opacity duration-200 focus-visible:opacity-100 active:cursor-grabbing group-hover/row:opacity-100"
+        className="-ml-1 shrink-0 cursor-grab touch-none p-0.5 text-muted opacity-30 transition-opacity duration-200 focus-visible:opacity-100 active:cursor-grabbing group-hover/row:opacity-100"
         aria-label="Lohista ümber"
       >
         <GripVertical className="h-4 w-4" aria-hidden />
       </button>
-      <CheckToggle
-        checked={item.done}
-        onChange={item.onToggle}
-        aria-label={item.done ? "Märgi tegemata" : "Märgi tehtud"}
-      />
+      <CheckToggle checked={item.done} onChange={item.onToggle} aria-label="Märgi tehtud" />
       {editing ? (
         <input
           autoFocus
-          className="min-w-0 flex-1 border-b border-border bg-transparent text-sm text-foreground outline-none focus:border-accent"
+          className="-mb-px min-w-0 flex-1 border-b border-accent bg-transparent text-base leading-6 text-foreground outline-none"
           value={editValue}
           onChange={(e) => setEditValue(e.target.value)}
           onBlur={commitEdit}
@@ -248,114 +255,76 @@ function SortableTaskRow({ item }: { item: TaskItem }) {
             if (e.key === "Enter") commitEdit();
             if (e.key === "Escape") setEditing(false);
           }}
+          aria-label="Taski pealkiri"
         />
       ) : (
-        <span
+        <button
+          type="button"
           onClick={startEdit}
-          className={`min-w-0 flex-1 cursor-text truncate text-sm ${
-            item.done ? "text-muted line-through" : "text-foreground"
-          }`}
+          className="min-w-0 flex-1 cursor-text text-left text-base leading-6 text-foreground"
         >
-          {item.title}
-        </span>
-      )}
-      {item.done && item.source !== "today" && (
-        <span className="shrink-0 rounded-full border border-border/60 px-2.5 py-1 text-xs uppercase tracking-wide text-muted opacity-50">
-          Today
-        </span>
+          {/* Telefonis kaks rida, et pealkiri ei kaoks kuupäeva ja nuppude taha. */}
+          <span className="block break-words max-sm:line-clamp-2 sm:truncate">{item.title}</span>
+        </button>
       )}
       {item.onSetDueDate && (
-        <input
-          type="date"
+        <DateField
           value={item.dueDate ?? ""}
-          onChange={(e) => item.onSetDueDate?.(e.target.value || null)}
-          className={`${DATE_INPUT_CLASS} ${item.done ? "opacity-50" : ""}`}
-          aria-label="Taski kuupäev"
+          onChange={(date) => item.onSetDueDate?.(date || null)}
+          label="Taski kuupäev"
+          revealOnRowHover
         />
       )}
-      <ProjectPill item={item} />
-      <button
-        type="button"
-        onClick={item.onDelete}
-        className="shrink-0 p-0.5 text-muted opacity-40 transition-all duration-200 hover:text-destructive focus-visible:opacity-100 group-hover/row:opacity-100"
-        aria-label="Kustuta task"
-      >
-        <X className="h-3.5 w-3.5" aria-hidden />
-      </button>
+      {/* Kindla laiusega pesa hoiab kuupäevad ja ristid joondus ka täpita ridadel. */}
+      <span className="flex w-6 shrink-0 justify-center">
+        {item.criticality && item.onCycleCriticality && (
+          <button
+            type="button"
+            onClick={item.onCycleCriticality}
+            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-full transition-colors duration-200 hover:bg-surface-hover"
+            aria-label={`Kriitilisus: ${CRITICALITY_LABEL[item.criticality]}. Klõpsa muutmiseks.`}
+            title={`Kriitilisus: ${CRITICALITY_LABEL[item.criticality]}`}
+          >
+            <span
+              className={`h-3 w-3 rounded-full ${CRITICALITY_CLASS[item.criticality]}`}
+              aria-hidden
+            />
+          </button>
+        )}
+      </span>
+      <DeleteButton onDelete={item.onDelete} />
     </li>
   );
 }
 
+function DoneTaskRow({ item }: { item: TaskItem }) {
+  return (
+    <li className="group/row flex items-center gap-3 py-2.5">
+      <CheckToggle checked onChange={item.onToggle} aria-label="Märgi tegemata" />
+      <span
+        className="min-w-0 flex-1 truncate text-sm text-muted line-through decoration-muted/50"
+        title={item.title}
+      >
+        {item.title}
+      </span>
+      <DeleteButton onDelete={item.onDelete} />
+    </li>
+  );
+}
+
+/**
+ * Kõik lahtised taskid ühes nimekirjas (vasakul), tehtud eraldi veerus (paremal).
+ * Kategooriaid siin ei valita: uus task läheb alati Business-projekti.
+ */
 export function TaskManagerWidget() {
-  const [active, setActive] = useState<Record<FilterKey, boolean>>({
-    today: true,
-    personal: true,
-    projects: true,
-  });
-  // Projektid, mille taskid on eraldi peidetud (vaikimisi kõik nähtavad).
-  const [hiddenProjects, setHiddenProjects] = useState<Set<string>>(new Set());
-  // "all" = filter väljas, checkboxid otsustavad. Muidu näidatakse ainult seda projekti.
-  const [onlyProject, setOnlyProject] = useState("all");
-  // Tühi = praegune käitumine (päevataskid tänasest). Täidetuna selle päeva taskid.
+  // Tühi = päevataskid tänasest ja kõik projekti-taskid. Täidetuna ainult selle päeva taskid.
   const [filterDate, setFilterDate] = useState("");
-
-  function toggleProject(id: string) {
-    setHiddenProjects((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  // Salvestamine on lubatud alles pärast taastamist, muidu kirjutaks esimene render vaikeväärtused peale.
-  const [filtersRestored, setFiltersRestored] = useState(false);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(FILTERS_STORAGE_KEY);
-      if (raw) {
-        const saved: unknown = JSON.parse(raw);
-        if (saved && typeof saved === "object") {
-          const { active: savedActive, hiddenProjects: savedHidden } = saved as Record<string, unknown>;
-          if (savedActive && typeof savedActive === "object") {
-            const record = savedActive as Record<string, unknown>;
-            setActive((prev) => {
-              const next = { ...prev };
-              for (const f of FILTERS) {
-                if (typeof record[f.key] === "boolean") next[f.key] = record[f.key] as boolean;
-              }
-              return next;
-            });
-          }
-          if (Array.isArray(savedHidden)) {
-            setHiddenProjects(new Set(savedHidden.filter((x): x is string => typeof x === "string")));
-          }
-        }
-      }
-    } catch {
-      // Vigane või kättesaamatu localStorage — alustame vaikeväärtustest.
-    }
-    setFiltersRestored(true);
-  }, []);
-
-  useEffect(() => {
-    if (!filtersRestored) return;
-    try {
-      localStorage.setItem(
-        FILTERS_STORAGE_KEY,
-        JSON.stringify({ active, hiddenProjects: Array.from(hiddenProjects) }),
-      );
-    } catch {
-      // localStorage võib olla keelatud — siis lihtsalt ei jää meelde.
-    }
-  }, [filtersRestored, active, hiddenProjects]);
 
   const todayTasks = useTodayTasks(filterDate || undefined);
   const personalTasks = useAllProjectTasks("personal");
   const projectTasks = useAllProjectTasks("projects");
   const orderQuery = useTaskManagerOrder();
-  const { data: allProjects } = useProjects();
+  const projectsQuery = useProjects();
   const updateTask = useUpdateTask();
   const toggleTask = useToggleProjectTask();
   const updateOrder = useUpdateTaskManagerOrder();
@@ -366,31 +335,41 @@ export function TaskManagerWidget() {
   const updateProjectTaskTitle = useUpdateProjectTaskTitle();
   const updateProjectTaskCriticality = useUpdateProjectTaskCriticality();
   const updateProjectTaskDueDate = useUpdateProjectTaskDueDate();
-  const updateProjectTaskProject = useUpdateProjectTaskProject();
-  const moveTaskToProject = useMoveTaskToProject();
 
   const [newTitle, setNewTitle] = useState("");
-  // Vaikimisi Business-projekt; kui seda pole (ümber nimetatud, kustutatud) või projektid alles laadivad, Today.
-  const [pickedCategory, setNewCategory] = useState<string | null>(null);
-  const businessId = allProjects?.find((p) => p.title.trim().toLowerCase() === "business")?.id;
-  const newCategory = pickedCategory ?? businessId ?? "today";
-  // Tühi = Today läheb tänasesse, projekti-task jääb kuupäevata.
+  // Tühi = Businessi task jääb kuupäevata; Today varuvariandis läheb task tänasesse.
   const [newDate, setNewDate] = useState("");
+  const [addFailed, setAddFailed] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
 
-  const categoryOptions: DropdownOption[] = [
-    { id: "today", label: "Today's tasks" },
-    ...(allProjects ?? []).map((p) => ({ id: p.id, label: p.title })),
-  ];
+  // Kui Business-projekti pole (ümber nimetatud, kustutatud), läheb task Today alla,
+  // et lisamine vaikselt ei ebaõnnestuks.
+  const businessId = projectsQuery.data?.find(
+    (p) => p.title.trim().toLowerCase() === "business",
+  )?.id;
   const addPending = addTodayTask.isPending || addProjectTask.isPending;
 
   function submitNewTask() {
     const title = newTitle.trim();
-    if (!title || addPending) return;
-    if (newCategory === "today") {
-      addTodayTask.mutate({ title, date: newDate || undefined });
+    if (!title) {
+      titleRef.current?.focus();
+      return;
+    }
+    // Projektide laadimise ajal pole teada, kas Business on olemas; pealkiri jääb väljale ootama.
+    if (addPending || projectsQuery.isLoading) return;
+
+    const callbacks = {
+      onSuccess: () => setAddFailed(false),
+      // Pealkiri tagasi väljale, kui sinna pole vahepeal uut kirjutatud.
+      onError: () => {
+        setAddFailed(true);
+        setNewTitle((current) => current || title);
+      },
+    };
+    if (businessId) {
+      addProjectTask.mutate({ projectId: businessId, title, dueDate: newDate || null }, callbacks);
     } else {
-      if (!allProjects?.some((p) => p.id === newCategory)) return;
-      addProjectTask.mutate({ projectId: newCategory, title, dueDate: newDate || null });
+      addTodayTask.mutate({ title, date: newDate || undefined }, callbacks);
     }
     // Kuupäev jääb püsima — mitu taski samale päevale on tavaline.
     setNewTitle("");
@@ -398,30 +377,16 @@ export function TaskManagerWidget() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
-  // Ühe projekti valik tühistab checkboxid — siis loevad ainult projektiallikad.
-  const filterByProject = onlyProject !== "all";
-  const sourceOn = (key: FilterKey) => (filterByProject ? key !== "today" : active[key]);
-
-  const noneActive = !filterByProject && FILTERS.every((f) => !active[f.key]);
   const isLoading =
     orderQuery.isLoading ||
-    (sourceOn("today") && todayTasks.isLoading) ||
-    (sourceOn("personal") && personalTasks.isLoading) ||
-    (sourceOn("projects") && projectTasks.isLoading);
-  const hasError =
-    (sourceOn("today") && todayTasks.error) ||
-    (sourceOn("personal") && personalTasks.error) ||
-    (sourceOn("projects") && projectTasks.error);
-
-  const projectOptions: ProjectOption[] = (allProjects ?? []).map((p) => ({
-    id: p.id,
-    label: p.title,
-  }));
-  // Päevataski saab tõsta projekti alla; tagasi mitte, nii et "Today" on ainult praegune väärtus.
-  const todayProjectOptions: ProjectOption[] = [{ id: "today", label: "Today" }, ...projectOptions];
+    todayTasks.isLoading ||
+    personalTasks.isLoading ||
+    projectTasks.isLoading;
+  const hasError = Boolean(todayTasks.error || personalTasks.error || projectTasks.error);
+  const ready = !isLoading && !hasError;
 
   // Tehtud projekti-taskide peegelread tasks-tabelis (project_task_id) jäetakse
-  // siin vahele — projekti enda rida kannab juba TODAY silti.
+  // siin vahele — projekti enda rida on juba nimekirjas.
   const projectTaskIds = new Set(
     [...(personalTasks.data ?? []), ...(projectTasks.data ?? [])].map((t) => t.id),
   );
@@ -430,7 +395,7 @@ export function TaskManagerWidget() {
   for (const task of todayTasks.data ?? []) {
     // Dateeritud projekti-task on nimekirjas juba oma projekti realt.
     if (task.origin === "project_task") continue;
-    // Kalendri-taskil pole tasks-rida, mida siinsed tegevused (nimi, kustutamine, projekt) muudaksid.
+    // Kalendri-taskil pole tasks-rida, mida siinsed tegevused (nimi, kustutamine) muudaksid.
     if (task.origin === "calendar") continue;
     if (task.project_task_id && projectTaskIds.has(task.project_task_id)) continue;
     allItems.push({
@@ -438,15 +403,10 @@ export function TaskManagerWidget() {
       source: "today",
       title: task.title,
       done: task.done,
-      label: "Today",
       dueDate: null,
-      projectOptions: todayProjectOptions,
-      projectValue: "today",
       onToggle: () => updateTask.mutate({ id: task.id, done: !task.done }),
       onRename: (title) => updateTask.mutate({ id: task.id, title }),
       onDelete: () => deleteTodayTask.mutate({ id: task.id }),
-      onChangeProject: (projectId) =>
-        moveTaskToProject.mutate({ taskId: task.id, projectId, title: task.title }),
     });
   }
   for (const [source, query] of [
@@ -458,14 +418,10 @@ export function TaskManagerWidget() {
       allItems.push({
         key: `${source}-${task.id}`,
         source,
-        projectId: task.project_id,
         title: task.title,
         done: taskDone,
-        label: task.projectTitle,
         criticality: task.criticality,
         dueDate: task.due_date,
-        projectOptions,
-        projectValue: task.project_id,
         onToggle: () =>
           toggleTask.mutate({
             id: task.id,
@@ -482,12 +438,6 @@ export function TaskManagerWidget() {
             projectId: task.project_id,
             criticality: nextCriticality(task.criticality),
           }),
-        onChangeProject: (newProjectId) =>
-          updateProjectTaskProject.mutate({
-            id: task.id,
-            projectId: task.project_id,
-            newProjectId,
-          }),
         onSetDueDate: (dueDate) =>
           updateProjectTaskDueDate.mutate({ id: task.id, projectId: task.project_id, dueDate }),
       });
@@ -497,8 +447,6 @@ export function TaskManagerWidget() {
   const savedOrder = orderQuery.data ?? [];
   const position = new Map(savedOrder.map((key, i) => [key, i]));
   allItems.sort((a, b) => {
-    // Tehtud tõusevad ette ka siis, kui rida on varem lohistatud.
-    if (a.done !== b.done) return Number(b.done) - Number(a.done);
     // Lohistatud read hoiavad oma kohta; ülejäänud langevad vaikejärjekorda.
     const pa = position.get(a.key) ?? Infinity;
     const pb = position.get(b.key) ?? Infinity;
@@ -506,226 +454,130 @@ export function TaskManagerWidget() {
     return defaultCompare(a, b);
   });
 
-  // Tehtuks märgitud task kuulub lisaks ka "Today's tasks" kategooriasse.
-  const visibleItems = allItems.filter((item) => {
-    // Päevataskid on juba selle kuupäeva kohta päritud; projekti-taskid filtreerime siin.
-    if (filterDate && item.source !== "today" && item.dueDate !== filterDate) return false;
-    if (filterByProject) return item.projectId === onlyProject;
-
-    const ownVisible =
-      active[item.source] && (!item.projectId || !hiddenProjects.has(item.projectId));
-    return ownVisible || (item.done && active.today);
-  });
-  const doneCount = visibleItems.filter((i) => i.done).length;
-  const openCountBySource = (source: FilterKey) =>
-    allItems.filter((i) => i.source === source && !i.done).length;
+  // Päevataskid on juba selle kuupäeva kohta päritud; projekti-taskid filtreerime siin.
+  const visibleItems = allItems.filter(
+    (item) => !filterDate || item.source === "today" || item.dueDate === filterDate,
+  );
+  const openItems = visibleItems.filter((i) => !i.done);
+  const doneItems = visibleItems.filter((i) => i.done);
 
   function handleDragEnd(event: DragEndEvent) {
     const { active: dragged, over } = event;
     if (!over || dragged.id === over.id) return;
 
-    const visibleKeys = visibleItems.map((i) => i.key);
-    const from = visibleKeys.indexOf(String(dragged.id));
-    const to = visibleKeys.indexOf(String(over.id));
+    const openKeys = openItems.map((i) => i.key);
+    const from = openKeys.indexOf(String(dragged.id));
+    const to = openKeys.indexOf(String(over.id));
     if (from === -1 || to === -1) return;
 
-    // Uus täisjärjekord: nähtavad read uues järjekorras, peidetud read jäävad oma kohale.
-    const movedVisible = arrayMove(visibleKeys, from, to);
-    const visibleSet = new Set(visibleKeys);
-    let vi = 0;
-    const fullOrder = allItems.map((item) =>
-      visibleSet.has(item.key) ? movedVisible[vi++] : item.key,
-    );
+    // Uus täisjärjekord: lahtised read uues järjekorras; tehtud ja filtri taha jäänud
+    // read hoiavad oma kohta, et nad tagasi tulles samasse kohta satuksid.
+    const movedOpen = arrayMove(openKeys, from, to);
+    const openSet = new Set(openKeys);
+    let oi = 0;
+    const fullOrder = allItems.map((item) => (openSet.has(item.key) ? movedOpen[oi++] : item.key));
     updateOrder.mutate(fullOrder);
   }
 
   return (
     <Card>
-      <div className="mb-4 flex shrink-0 items-center justify-between">
+      <div className="mb-2 flex shrink-0 items-center justify-between gap-3">
         <WidgetTitle icon={ListChecks} href="https://taskzen-phi.vercel.app/tasks">
           Taskmanager
         </WidgetTitle>
-        {visibleItems.length > 0 && (
-          <span className="font-mono text-xs text-muted">
-            {scoreBadge(doneCount, visibleItems.length)}
-          </span>
-        )}
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col gap-6 md:flex-row">
-        <aside className="shrink-0 border-b border-border/40 pb-5 md:w-56 md:border-b-0 md:border-r md:pb-0 md:pr-6">
-          <div className="mb-4 min-w-0">
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted">
-              Projekt
-            </p>
-            <Dropdown
-              options={[
-                { id: "all", label: "Kõik allikad" },
-                ...(allProjects ?? []).map((p) => ({
-                  id: p.id,
-                  label: p.title,
-                  count: p.taskCount,
-                })),
-              ]}
-              value={onlyProject}
-              onChange={setOnlyProject}
-            />
-          </div>
-
-          <div className="mb-4 min-w-0">
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted">
-              Kuupäev
-            </p>
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                className={`${DATE_INPUT_CLASS} min-w-0 flex-1 py-2`}
-                aria-label="Näita selle kuupäeva taske"
-              />
-              {filterDate && (
-                <button
-                  type="button"
-                  onClick={() => setFilterDate("")}
-                  className="shrink-0 cursor-pointer p-1 text-muted transition-colors duration-200 hover:text-foreground"
-                  aria-label="Tühjenda kuupäev"
-                >
-                  <X className="h-3.5 w-3.5" aria-hidden />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Ühe projekti valikul ei mõjuta checkboxid enam midagi. */}
-          <div className={`min-w-0 ${filterByProject ? "pointer-events-none opacity-40" : ""}`}>
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted">
-              Sources
-            </p>
-            <div className="flex flex-col gap-0.5">
-              {FILTERS.map((f) => (
-                <div key={f.key} className="flex flex-col gap-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setActive((prev) => ({ ...prev, [f.key]: !prev[f.key] }))}
-                    aria-pressed={active[f.key]}
-                    className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors duration-200 ${
-                      active[f.key]
-                        ? "bg-surface-hover/60 text-foreground"
-                        : "text-muted hover:text-foreground"
-                    }`}
-                  >
-                    <span
-                      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors duration-200 ${
-                        active[f.key] ? "border-accent bg-accent text-background" : "border-border"
-                      }`}
-                      aria-hidden
-                    >
-                      {active[f.key] && <Check className="h-3 w-3" strokeWidth={3} />}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate text-left">{f.label}</span>
-                    <span className="font-mono text-xs tabular-nums text-muted">
-                      {openCountBySource(f.key)}
-                    </span>
-                  </button>
-                  {f.key !== "today" && active[f.key] && (
-                    <div className="ml-4 flex flex-col gap-0.5 border-l border-border/40 pl-2.5">
-                      {(allProjects ?? [])
-                        .filter((p) => p.section === f.key)
-                        .map((p) => {
-                          const projectVisible = !hiddenProjects.has(p.id);
-                          return (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => toggleProject(p.id)}
-                              aria-pressed={projectVisible}
-                              className={`flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors duration-200 ${
-                                projectVisible
-                                  ? "text-foreground"
-                                  : "text-muted hover:text-foreground"
-                              }`}
-                            >
-                              <span
-                                className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border transition-colors duration-200 ${
-                                  projectVisible
-                                    ? "border-accent bg-accent text-background"
-                                    : "border-border"
-                                }`}
-                                aria-hidden
-                              >
-                                {projectVisible && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
-                              </span>
-                              <span className="min-w-0 flex-1 truncate text-left">{p.title}</span>
-                              <span className="font-mono text-[10px] tabular-nums text-muted">
-                                {p.taskCount}
-                              </span>
-                            </button>
-                          );
-                        })}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
+        <div className="-my-1 flex items-center gap-1">
           {savedOrder.length > 0 && (
             <button
               type="button"
               onClick={() => updateOrder.mutate([])}
-              className="mt-4 w-full cursor-pointer rounded-lg border border-border/60 px-2.5 py-2 text-xs text-muted transition-colors duration-200 hover:border-accent/40 hover:text-foreground"
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-muted transition-colors duration-200 hover:bg-surface-hover/60 hover:text-foreground"
+              aria-label="Taasta vaikimisi järjekord"
+              title="Taasta vaikimisi järjekord"
             >
-              Taasta vaikimisi järjekord
+              <RotateCcw className="h-4 w-4" aria-hidden />
             </button>
           )}
-        </aside>
+          <DateField
+            value={filterDate}
+            onChange={setFilterDate}
+            label="Näita ühe päeva taske"
+            icon={CalendarSearch}
+            clearLabel="Näita kõiki taske"
+            activeClass="bg-accent/15 text-accent-bright"
+          />
+        </div>
+      </div>
 
-        <div className="min-w-0 max-w-4xl flex-1">
+      <div className="flex min-h-0 flex-1 flex-col gap-8 lg:flex-row lg:gap-10">
+        <section className="min-w-0 flex-1" aria-label="Lahtised taskid">
           <form
             onSubmit={(e) => {
               e.preventDefault();
               submitNewTask();
             }}
-            className="mb-3 flex flex-wrap items-center gap-2 border-b border-border/40 pb-3"
+            className="group/add flex h-14 items-center gap-2 border-b border-border/60 transition-colors duration-200 focus-within:border-accent sm:gap-3"
           >
-            <input
-              className="min-w-[12rem] flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors duration-200 placeholder:text-muted/60 focus:border-accent"
-              placeholder="Uus task..."
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-            />
-            <input
-              type="date"
-              value={newDate}
-              onChange={(e) => setNewDate(e.target.value)}
-              className="shrink-0 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors duration-200 [color-scheme:dark] focus:border-accent"
-              aria-label="Uue taski kuupäev"
-            />
-            <Dropdown
-              className="w-48 shrink-0"
-              options={categoryOptions}
-              value={newCategory}
-              onChange={setNewCategory}
-            />
-            <Button
+            {/* Tühi pesa lohistamissanga kohal, et pluss oleks linnukestega ühel joonel. */}
+            <span className="-ml-1 w-5 shrink-0" aria-hidden />
+            <button
               type="submit"
-              className="shrink-0 px-3 py-2"
-              disabled={addPending || !newTitle.trim()}
+              className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-dashed border-muted/50 text-muted transition-colors duration-200 hover:border-accent hover:text-accent-bright group-focus-within/add:border-accent group-focus-within/add:text-accent-bright"
               aria-label="Lisa task"
             >
-              <Plus className="h-4 w-4" aria-hidden />
-            </Button>
+              <Plus className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden />
+            </button>
+            <input
+              ref={titleRef}
+              className="min-w-0 flex-1 bg-transparent font-display text-xl font-medium tracking-[-0.01em] text-foreground outline-none placeholder:text-muted/50 sm:text-2xl"
+              placeholder="Uus task"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              enterKeyHint="done"
+              aria-label="Uue taski pealkiri"
+            />
+            <DateField
+              value={newDate}
+              onChange={setNewDate}
+              label="Uue taski kuupäev"
+              clearLabel="Eemalda uue taski kuupäev"
+              activeClass="text-foreground"
+            />
+            {/* Sama laiusega kui ridade täpp ja rist, et kuupäevad jääksid ühte veergu. */}
+            <span className="hidden w-6 shrink-0 sm:block" aria-hidden />
+            <span className="hidden w-6 shrink-0 sm:block" aria-hidden />
           </form>
 
-          {noneActive ? (
-            <p className="py-2 text-sm text-muted">Vali allikas, et taske näha.</p>
-          ) : isLoading ? (
-            <Skeleton className="h-32 w-full" />
+          {addFailed && (
+            <p className="pt-2 text-sm text-destructive" role="alert">
+              Taski ei saanud lisada. Proovi uuesti.
+            </p>
+          )}
+
+          {isLoading ? (
+            <Skeleton className="mt-4 h-40 w-full" />
           ) : hasError ? (
-            <p className="text-sm text-destructive">Taskide laadimine ebaõnnestus.</p>
-          ) : visibleItems.length === 0 ? (
-            <p className="py-2 text-sm text-muted">Taske pole.</p>
+            <p className="py-5 text-sm text-destructive">
+              Taske ei saanud laadida. Laadi leht uuesti.
+            </p>
+          ) : openItems.length === 0 ? (
+            <p className="py-5 text-sm text-muted">
+              {filterDate
+                ? doneItems.length > 0
+                  ? "Selle päeva taskid on tehtud."
+                  : "Sellel päeval taske pole."
+                : doneItems.length > 0
+                  ? "Kõik on tehtud."
+                  : "Nimekiri on tühi. Kirjuta esimene task ülal olevale reale."}
+              {filterDate && (
+                <button
+                  type="button"
+                  onClick={() => setFilterDate("")}
+                  className="ml-2 cursor-pointer text-accent-bright underline-offset-4 hover:underline"
+                >
+                  Näita kõiki taske
+                </button>
+              )}
+            </p>
           ) : (
             <DndContext
               sensors={sensors}
@@ -733,18 +585,39 @@ export function TaskManagerWidget() {
               onDragEnd={handleDragEnd}
             >
               <SortableContext
-                items={visibleItems.map((i) => i.key)}
+                items={openItems.map((i) => i.key)}
                 strategy={verticalListSortingStrategy}
               >
                 <ul className="divide-y divide-border/40">
-                  {visibleItems.map((item) => (
+                  {openItems.map((item) => (
                     <SortableTaskRow key={item.key} item={item} />
                   ))}
                 </ul>
               </SortableContext>
             </DndContext>
           )}
-        </div>
+        </section>
+
+        <aside className="shrink-0 border-t border-border/40 pt-4 lg:w-80 lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0 xl:w-96">
+          <div className="flex h-10 items-center justify-between gap-3 border-b border-border/40 lg:h-14">
+            <h3 className="text-sm font-medium text-foreground">Tehtud</h3>
+            {ready && visibleItems.length > 0 && (
+              <span className="font-mono text-xs text-muted">
+                {scoreBadge(doneItems.length, visibleItems.length)}
+              </span>
+            )}
+          </div>
+          {ready &&
+            (doneItems.length === 0 ? (
+              <p className="py-4 text-sm text-muted">Märgi task tehtuks ja see ilmub siia.</p>
+            ) : (
+              <ul className="divide-y divide-border/40">
+                {doneItems.map((item) => (
+                  <DoneTaskRow key={item.key} item={item} />
+                ))}
+              </ul>
+            ))}
+        </aside>
       </div>
     </Card>
   );
