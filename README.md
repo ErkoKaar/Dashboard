@@ -81,14 +81,14 @@ The header has a clock, the weather in Tallinn and an animated WebGL sky that ch
 
 ### Other views
 
-- **Taskmanager**: every open task in one list, from today's tasks and all projects, with finished ones in a column beside it. New tasks go to the Business project. Filter by date, drag to reorder, set due dates and criticality.
+- **Taskmanager**: every open task in one list, from today's tasks and all projects. Drag a task below the "Kaugemas tulevikus" (later) heading to park it. A column beside the list holds a free-form list of ongoing projects and the finished tasks. New tasks go to the Business project. Filter by date, drag to reorder, set due dates and criticality.
 - **Quick Notes**: a single rich-text scratchpad (Tiptap) with headings and bullet or numbered lists that saves as you type.
 - **File system**: folders and rich-text files in a tree. Drag to move and reorder. **Open document** shows a file as a page at its own address (`/doc/<id>`), like a word processor; edits in either window reach the other.
 - **Delfi korvpall**: the latest basketball news from [sport.delfi.ee](https://sport.delfi.ee).
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/taskmanager.png" alt="Taskmanager: tasks from today and all projects with due dates and project tags"></td>
+    <td width="50%"><img src="docs/screenshots/taskmanager.png" alt="Taskmanager: open tasks with due dates, parked ones under a later heading, ongoing projects and finished tasks in a column beside them"></td>
     <td width="50%"><img src="docs/screenshots/files.png" alt="File system: folder tree with a note open in the editor"></td>
   </tr>
 </table>

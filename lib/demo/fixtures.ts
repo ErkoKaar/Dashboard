@@ -302,6 +302,15 @@ export function seedTables(project: DemoProject): Tables {
     habit_logs: logs,
     quick_notes: [{ id: id(), user_id: DEMO_USER_ID, content: QUICK_NOTE, updated_at: new Date().toISOString() }],
     taskmanager_order: [],
+    taskmanager_projects: ["Portfolio redesign", "Mobile app MVP", "Half marathon training"].map(
+      (title, position) => ({
+        id: id(),
+        user_id: DEMO_USER_ID,
+        title,
+        position,
+        created_at: new Date().toISOString(),
+      }),
+    ),
     fs_nodes: seedFileSystem(),
   };
 }

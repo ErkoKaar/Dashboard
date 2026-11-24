@@ -1,6 +1,13 @@
 "use client";
 
-import { ComponentType, MouseEvent, SVGProps, useRef, useState } from "react";
+import {
+  ButtonHTMLAttributes,
+  ComponentType,
+  MouseEvent,
+  SVGProps,
+  useRef,
+  useState,
+} from "react";
 import {
   CalendarDays,
   CalendarSearch,
@@ -41,7 +48,20 @@ import {
   useUpdateProjectTaskDueDate,
   useUpdateProjectTaskTitle,
 } from "@/lib/queries/useProjects";
-import { useTaskManagerOrder, useUpdateTaskManagerOrder } from "@/lib/queries/useTaskManagerOrder";
+import {
+  LATER_KEY,
+  moveInOrder,
+  useTaskManagerOrder,
+  useUpdateTaskManagerOrder,
+  withLaterMarker,
+} from "@/lib/queries/useTaskManagerOrder";
+import {
+  TaskManagerProject,
+  useAddTaskManagerProject,
+  useDeleteTaskManagerProject,
+  useReorderTaskManagerProjects,
+  useTaskManagerProjects,
+} from "@/lib/queries/useTaskManagerProjects";
 import { scoreBadge } from "@/lib/dailyScoreStatus";
 import { nextDate, todayDate } from "@/lib/date";
 
@@ -195,20 +215,40 @@ function DateField({
   );
 }
 
-function DeleteButton({ onDelete }: { onDelete: () => void }) {
+function DeleteButton({ onDelete, label = "Kustuta task" }: { onDelete: () => void; label?: string }) {
   return (
     <button
       type="button"
       onClick={onDelete}
       className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted opacity-0 transition-[color,opacity] duration-200 hover:text-destructive focus-visible:opacity-100 group-hover/row:opacity-100 [@media(hover:none)]:opacity-50"
-      aria-label="Kustuta task"
+      aria-label={label}
     >
       <X className="h-4 w-4" aria-hidden />
     </button>
   );
 }
 
-function SortableTaskRow({ item }: { item: TaskItem }) {
+/** Lohistamissang; dnd-kiti `attributes` ja `listeners` antakse edasi propsidena. */
+function DragHandle(props: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      {...props}
+      className="-ml-1 shrink-0 cursor-grab touch-none p-0.5 text-muted opacity-30 transition-opacity duration-200 focus-visible:opacity-100 active:cursor-grabbing group-hover/row:opacity-100"
+      aria-label="Lohista ümber"
+    >
+      <GripVertical className="h-4 w-4" aria-hidden />
+    </button>
+  );
+}
+
+interface SortableTaskRowProps {
+  item: TaskItem;
+  /** Rida on "Kaugemas tulevikus" all: tuhmim, kuni sellega tegeletakse. */
+  later: boolean;
+}
+
+function SortableTaskRow({ item, later }: SortableTaskRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.key,
   });
@@ -230,19 +270,15 @@ function SortableTaskRow({ item }: { item: TaskItem }) {
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`group/row flex min-h-14 items-center gap-2 py-3 transition-colors duration-200 hover:bg-surface-hover/25 sm:gap-3 ${
-        isDragging ? "relative z-10 bg-surface opacity-90" : ""
+      className={`group/row flex min-h-14 items-center gap-2 py-3 transition-[background-color,opacity] duration-200 hover:bg-surface-hover/25 sm:gap-3 ${
+        isDragging
+          ? "relative z-10 bg-surface opacity-90"
+          : later
+            ? "opacity-55 focus-within:opacity-100 hover:opacity-100"
+            : ""
       }`}
     >
-      <button
-        type="button"
-        {...attributes}
-        {...listeners}
-        className="-ml-1 shrink-0 cursor-grab touch-none p-0.5 text-muted opacity-30 transition-opacity duration-200 focus-visible:opacity-100 active:cursor-grabbing group-hover/row:opacity-100"
-        aria-label="Lohista ümber"
-      >
-        <GripVertical className="h-4 w-4" aria-hidden />
-      </button>
+      <DragHandle {...attributes} {...listeners} />
       <CheckToggle checked={item.done} onChange={item.onToggle} aria-label="Märgi tehtud" />
       {editing ? (
         <input
@@ -313,7 +349,190 @@ function DoneTaskRow({ item }: { item: TaskItem }) {
 }
 
 /**
- * Kõik lahtised taskid ühes nimekirjas (vasakul), tehtud eraldi veerus (paremal).
+ * Pealkirjarida taskide nimekirja sees: read selle all on "Kaugemas tulevikus".
+ * Ise ei lohistu, aga on lohistamise sihtkoht, nii et taski saab üle piiri tõsta.
+ */
+function LaterDivider({ count }: { count: number }) {
+  const { setNodeRef, transform, transition } = useSortable({
+    id: LATER_KEY,
+    disabled: { draggable: true },
+  });
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className="pb-3 pt-9"
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-sm font-medium text-foreground">Kaugemas tulevikus</h3>
+        {count > 0 && <span className="font-mono text-xs text-muted">{count}</span>}
+      </div>
+      {count === 0 && (
+        <p className="pt-1 text-sm text-muted">Lohista siia taskid, millega praegu ei tegele.</p>
+      )}
+    </li>
+  );
+}
+
+function SortableProjectRow({
+  project,
+  onDelete,
+}: {
+  project: TaskManagerProject;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: project.id,
+  });
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`group/row flex min-h-11 items-center gap-2 py-2 ${
+        isDragging ? "relative z-10 bg-surface opacity-90" : ""
+      }`}
+    >
+      <DragHandle {...attributes} {...listeners} />
+      <span
+        className="min-w-0 flex-1 truncate text-base font-bold leading-6 text-foreground"
+        title={project.title}
+      >
+        {project.title}
+      </span>
+      <DeleteButton onDelete={onDelete} label="Eemalda projekt" />
+    </li>
+  );
+}
+
+/** Vaba nimekiri projektidest, millega praegu tegeletakse; TaskZeni projektidest sõltumatu. */
+function ActiveProjects() {
+  const projectsQuery = useTaskManagerProjects();
+  const addProject = useAddTaskManagerProject();
+  const deleteProject = useDeleteTaskManagerProject();
+  const reorderProjects = useReorderTaskManagerProjects();
+
+  const [title, setTitle] = useState("");
+  const [addFailed, setAddFailed] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  const projects = projectsQuery.data ?? [];
+
+  function submitProject() {
+    const name = title.trim();
+    if (!name) {
+      titleRef.current?.focus();
+      return;
+    }
+    if (addProject.isPending) return;
+
+    addProject.mutate(
+      // Uus projekt läheb nimekirja lõppu.
+      { title: name, position: Math.max(-1, ...projects.map((p) => p.position)) + 1 },
+      {
+        onSuccess: () => setAddFailed(false),
+        // Nimi tagasi väljale, kui sinna pole vahepeal uut kirjutatud.
+        onError: () => {
+          setAddFailed(true);
+          setTitle((current) => current || name);
+        },
+      },
+    );
+    setTitle("");
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active: dragged, over } = event;
+    if (!over || dragged.id === over.id) return;
+
+    const from = projects.findIndex((p) => p.id === dragged.id);
+    const to = projects.findIndex((p) => p.id === over.id);
+    if (from === -1 || to === -1) return;
+    reorderProjects.mutate(arrayMove(projects, from, to));
+  }
+
+  return (
+    <section aria-label="Käimasolevad projektid">
+      <div className="flex h-10 items-center justify-between gap-3 border-b border-border/40 lg:h-14">
+        <h3 className="text-sm font-medium text-foreground">Käimasolevad projektid</h3>
+        {projects.length > 0 && (
+          <span className="font-mono text-xs text-muted">{projects.length}</span>
+        )}
+      </div>
+
+      {projectsQuery.isLoading ? (
+        <Skeleton className="mt-3 h-16 w-full" />
+      ) : projectsQuery.error ? (
+        <p className="py-4 text-sm text-destructive">
+          Projekte ei saanud laadida. Laadi leht uuesti.
+        </p>
+      ) : (
+        <>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={projects.map((p) => p.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <ul className="divide-y divide-border/40">
+                {projects.map((project) => (
+                  <SortableProjectRow
+                    key={project.id}
+                    project={project}
+                    onDelete={() => deleteProject.mutate(project.id)}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              submitProject();
+            }}
+            className={`group/add flex h-11 items-center gap-2 border-b border-b-transparent transition-colors duration-200 focus-within:border-b-accent ${
+              projects.length > 0 ? "border-t border-t-border/40" : ""
+            }`}
+          >
+            <button
+              type="submit"
+              className="-ml-1 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center text-muted transition-colors duration-200 hover:text-accent-bright group-focus-within/add:text-accent-bright"
+              aria-label="Lisa projekt"
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+            </button>
+            <input
+              ref={titleRef}
+              className="min-w-0 flex-1 bg-transparent text-base leading-6 text-foreground outline-none placeholder:text-muted/60"
+              placeholder="Lisa projekt"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={200}
+              enterKeyHint="done"
+              aria-label="Uue projekti nimi"
+            />
+          </form>
+
+          {addFailed && (
+            <p className="pt-2 text-sm text-destructive" role="alert">
+              Projekti ei saanud lisada. Proovi uuesti.
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Vasakul kõik lahtised taskid ühes nimekirjas; pealkirjarea "Kaugemas tulevikus" alla
+ * lohistatud taskid on edasi lükatud. Paremal käimasolevad projektid ja tehtud taskid.
  * Kategooriaid siin ei valita: uus task läheb alati Business-projekti.
  */
 export function TaskManagerWidget() {
@@ -444,15 +663,21 @@ export function TaskManagerWidget() {
     }
   }
 
+  // Lohistatud read hoiavad oma kohta; lohistamata (uued) langevad vaikejärjekorras
+  // "Kaugemas tulevikus" piiri ette.
   const savedOrder = orderQuery.data ?? [];
-  const position = new Map(savedOrder.map((key, i) => [key, i]));
-  allItems.sort((a, b) => {
-    // Lohistatud read hoiavad oma kohta; ülejäänud langevad vaikejärjekorda.
-    const pa = position.get(a.key) ?? Infinity;
-    const pb = position.get(b.key) ?? Infinity;
-    if (pa !== pb) return pa - pb;
-    return defaultCompare(a, b);
-  });
+  const savedKeys = new Set(savedOrder);
+  const fullOrder = withLaterMarker(
+    savedOrder,
+    allItems
+      .filter((item) => !savedKeys.has(item.key))
+      .sort(defaultCompare)
+      .map((item) => item.key),
+  );
+  const position = new Map(fullOrder.map((key, i) => [key, i]));
+  const laterAt = position.get(LATER_KEY) ?? fullOrder.length;
+  allItems.sort((a, b) => (position.get(a.key) ?? 0) - (position.get(b.key) ?? 0));
+  const isLater = (item: TaskItem) => (position.get(item.key) ?? 0) > laterAt;
 
   // Päevataskid on juba selle kuupäeva kohta päritud; projekti-taskid filtreerime siin.
   const visibleItems = allItems.filter(
@@ -460,23 +685,44 @@ export function TaskManagerWidget() {
   );
   const openItems = visibleItems.filter((i) => !i.done);
   const doneItems = visibleItems.filter((i) => i.done);
+  const activeItems = openItems.filter((i) => !isLater(i));
+  const laterItems = openItems.filter(isLater);
+  const listKeys = [...activeItems.map((i) => i.key), LATER_KEY, ...laterItems.map((i) => i.key)];
+  // Edasi lükatud taskid skoori ei lähe: nendega praegu ei tegeleta.
+  const scoreTotal = doneItems.length + activeItems.length;
+
+  // Filtrita on kõik näidatavad taskid laaditud, nii et tundmatu võti on kustutatud task
+  // ja langeb salvestamisel välja. Kuupäevafiltriga on teiste päevade päevataskid
+  // laadimata; nende koht ja pool piirist peavad alles jääma.
+  const knownKeys = new Set(allItems.map((i) => i.key));
+  const keptOrder = filterDate
+    ? fullOrder
+    : fullOrder.filter((key) => key === LATER_KEY || knownKeys.has(key));
+
+  // Lähtestada on midagi ainult siis, kui piiri ees on lohistatud ridu.
+  const savedLaterAt = savedOrder.indexOf(LATER_KEY);
+  const hasCustomOrder = savedLaterAt === -1 ? savedOrder.length > 0 : savedLaterAt > 0;
 
   function handleDragEnd(event: DragEndEvent) {
     const { active: dragged, over } = event;
     if (!over || dragged.id === over.id) return;
 
-    const openKeys = openItems.map((i) => i.key);
-    const from = openKeys.indexOf(String(dragged.id));
-    const to = openKeys.indexOf(String(over.id));
+    const from = listKeys.indexOf(String(dragged.id));
+    const to = listKeys.indexOf(String(over.id));
     if (from === -1 || to === -1) return;
+    updateOrder.mutate(moveInOrder(keptOrder, listKeys, from, to));
+  }
 
-    // Uus täisjärjekord: lahtised read uues järjekorras; tehtud ja filtri taha jäänud
-    // read hoiavad oma kohta, et nad tagasi tulles samasse kohta satuksid.
-    const movedOpen = arrayMove(openKeys, from, to);
-    const openSet = new Set(openKeys);
-    let oi = 0;
-    const fullOrder = allItems.map((item) => (openSet.has(item.key) ? movedOpen[oi++] : item.key));
-    updateOrder.mutate(fullOrder);
+  /** Vaikejärjekord tagasi; edasi lükatud taskid jäävad "Kaugemas tulevikus" alla. */
+  function resetOrder() {
+    const later = [
+      ...allItems
+        .filter(isLater)
+        .sort(defaultCompare)
+        .map((i) => i.key),
+      ...keptOrder.slice(keptOrder.indexOf(LATER_KEY) + 1).filter((key) => !knownKeys.has(key)),
+    ];
+    updateOrder.mutate(later.length > 0 ? [LATER_KEY, ...later] : []);
   }
 
   return (
@@ -486,10 +732,10 @@ export function TaskManagerWidget() {
           Taskmanager
         </WidgetTitle>
         <div className="-my-1 flex items-center gap-1">
-          {savedOrder.length > 0 && (
+          {hasCustomOrder && (
             <button
               type="button"
-              onClick={() => updateOrder.mutate([])}
+              onClick={resetOrder}
               className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-muted transition-colors duration-200 hover:bg-surface-hover/60 hover:text-foreground"
               aria-label="Taasta vaikimisi järjekord"
               title="Taasta vaikimisi järjekord"
@@ -559,64 +805,79 @@ export function TaskManagerWidget() {
             <p className="py-5 text-sm text-destructive">
               Taske ei saanud laadida. Laadi leht uuesti.
             </p>
-          ) : openItems.length === 0 ? (
-            <p className="py-5 text-sm text-muted">
-              {filterDate
-                ? doneItems.length > 0
-                  ? "Selle päeva taskid on tehtud."
-                  : "Sellel päeval taske pole."
-                : doneItems.length > 0
-                  ? "Kõik on tehtud."
-                  : "Nimekiri on tühi. Kirjuta esimene task ülal olevale reale."}
-              {filterDate && (
-                <button
-                  type="button"
-                  onClick={() => setFilterDate("")}
-                  className="ml-2 cursor-pointer text-accent-bright underline-offset-4 hover:underline"
-                >
-                  Näita kõiki taske
-                </button>
-              )}
-            </p>
           ) : (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={openItems.map((i) => i.key)}
-                strategy={verticalListSortingStrategy}
-              >
-                <ul className="divide-y divide-border/40">
-                  {openItems.map((item) => (
-                    <SortableTaskRow key={item.key} item={item} />
-                  ))}
-                </ul>
-              </SortableContext>
-            </DndContext>
+            <>
+              {activeItems.length === 0 && (
+                <p className="py-5 text-sm text-muted">
+                  {filterDate
+                    ? doneItems.length > 0
+                      ? "Selle päeva taskid on tehtud."
+                      : laterItems.length > 0
+                        ? "Sellel päeval pole töös ühtegi taski."
+                        : "Sellel päeval taske pole."
+                    : doneItems.length > 0
+                      ? "Kõik on tehtud."
+                      : laterItems.length > 0
+                        ? "Töös pole ühtegi taski."
+                        : "Nimekiri on tühi. Kirjuta esimene task ülal olevale reale."}
+                  {filterDate && (
+                    <button
+                      type="button"
+                      onClick={() => setFilterDate("")}
+                      className="ml-2 cursor-pointer text-accent-bright underline-offset-4 hover:underline"
+                    >
+                      Näita kõiki taske
+                    </button>
+                  )}
+                </p>
+              )}
+              {/* Piir on näha alati, kui on midagi lohistada: see on ka tühjana sihtkoht. */}
+              {openItems.length > 0 && (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext items={listKeys} strategy={verticalListSortingStrategy}>
+                    <ul className="divide-y divide-border/40">
+                      {activeItems.map((item) => (
+                        <SortableTaskRow key={item.key} item={item} later={false} />
+                      ))}
+                      <LaterDivider count={laterItems.length} />
+                      {laterItems.map((item) => (
+                        <SortableTaskRow key={item.key} item={item} later />
+                      ))}
+                    </ul>
+                  </SortableContext>
+                </DndContext>
+              )}
+            </>
           )}
         </section>
 
         <aside className="shrink-0 border-t border-border/40 pt-4 lg:w-80 lg:border-l lg:border-t-0 lg:pl-10 lg:pt-0 xl:w-96">
-          <div className="flex h-10 items-center justify-between gap-3 border-b border-border/40 lg:h-14">
-            <h3 className="text-sm font-medium text-foreground">Tehtud</h3>
-            {ready && visibleItems.length > 0 && (
-              <span className="font-mono text-xs text-muted">
-                {scoreBadge(doneItems.length, visibleItems.length)}
-              </span>
-            )}
-          </div>
-          {ready &&
-            (doneItems.length === 0 ? (
-              <p className="py-4 text-sm text-muted">Märgi task tehtuks ja see ilmub siia.</p>
-            ) : (
-              <ul className="divide-y divide-border/40">
-                {doneItems.map((item) => (
-                  <DoneTaskRow key={item.key} item={item} />
-                ))}
-              </ul>
-            ))}
+          <ActiveProjects />
+
+          <section aria-label="Tehtud taskid" className="mt-8">
+            <div className="flex h-10 items-center justify-between gap-3 border-b border-border/40">
+              <h3 className="text-sm font-medium text-foreground">Tehtud</h3>
+              {ready && scoreTotal > 0 && (
+                <span className="font-mono text-xs text-muted">
+                  {scoreBadge(doneItems.length, scoreTotal)}
+                </span>
+              )}
+            </div>
+            {ready &&
+              (doneItems.length === 0 ? (
+                <p className="py-4 text-sm text-muted">Märgi task tehtuks ja see ilmub siia.</p>
+              ) : (
+                <ul className="divide-y divide-border/40">
+                  {doneItems.map((item) => (
+                    <DoneTaskRow key={item.key} item={item} />
+                  ))}
+                </ul>
+              ))}
+          </section>
         </aside>
       </div>
     </Card>
