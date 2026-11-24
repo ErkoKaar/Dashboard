@@ -206,6 +206,7 @@ flowchart LR
    | `NEXT_PUBLIC_CHESS_USERNAME` | Chess.com username |
    | `DASHBOARD_ALLOWED_USER_ID` | Server only, required: the one TaskManager user the API serves; without it every API request is refused |
    | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` | Server only: Google Calendar |
+   | `GOOGLE_EXTRA_CALENDAR_IDS` | Server only, optional: comma-separated calendars shared with that Google account, shown next to its own (read-only) |
    | `YOUTUBE_API_KEY` | Server only, optional: recaps for the last 30 days instead of the RSS feed's last few |
    | `FINANCE_WIDGET_PIN` | Server only, optional: PIN lock for the Finance widget |
    | `DASHBOARD_WIDGET_TOKEN`, `TASKS_SUPABASE_SERVICE_ROLE_KEY` | Server only, optional: the [iPhone widget](#iphone-widget) endpoint |
