@@ -370,7 +370,10 @@ export function TaskManagerWidget() {
   const moveTaskToProject = useMoveTaskToProject();
 
   const [newTitle, setNewTitle] = useState("");
-  const [newCategory, setNewCategory] = useState("today");
+  // Vaikimisi Business-projekt; kui seda pole (ümber nimetatud, kustutatud) või projektid alles laadivad, Today.
+  const [pickedCategory, setNewCategory] = useState<string | null>(null);
+  const businessId = allProjects?.find((p) => p.title.trim().toLowerCase() === "business")?.id;
+  const newCategory = pickedCategory ?? businessId ?? "today";
   // Tühi = Today läheb tänasesse, projekti-task jääb kuupäevata.
   const [newDate, setNewDate] = useState("");
 
