@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { blockedResponse } from "@/lib/basketball/http";
 import { getPlayerProfile, isPlayerId } from "@/lib/estlat/api";
 import { requireUser } from "@/lib/server/requireUser";
 
@@ -19,6 +20,6 @@ export async function GET(request: Request) {
     return NextResponse.json(profile);
   } catch (error) {
     console.error("[estlat/player]", error);
-    return NextResponse.json({ error: "Est-Lat mängija profiili laadimine ebaõnnestus" }, { status: 502 });
+    return blockedResponse(error) ?? NextResponse.json({ error: "Est-Lat mängija profiili laadimine ebaõnnestus" }, { status: 502 });
   }
 }

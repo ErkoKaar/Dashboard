@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { assertCompleteBoxscore } from "@/lib/basketball/boxscore";
-import { fetchText, settleWithLimit } from "@/lib/basketball/http";
+import { fetchText, settleWithLimit, SourceBlockedError } from "@/lib/basketball/http";
 import { buildLeaders } from "@/lib/basketball/leaders";
 import { groupGameDays } from "@/lib/basketball/period";
 import { profileFromBoxscores } from "@/lib/basketball/profile";
@@ -59,9 +59,17 @@ const cellsOf = (row: string) => [...row.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd
 const tablesOf = (html: string) => [...html.matchAll(/<table[\s\S]*?<\/table>/g)].map((m) => m[0]);
 const imageOf = (html: string) => html.match(/<img[^>]+src="(https:\/\/[^"]+)"/)?.[1] ?? null;
 
+const SOURCE = "estlatbl.com";
+
+// Tulemuste, statistika, tabeli ja mängijate lehed annavad serveri päringule Cloudflare Turnstile'i
+// turvakontrolli (HTTP 200, ~1,4 KB, sisuosata); ajakava on lahti. Ilma selle kontrollita loetaks
+// turvakontrolli leht tühjaks tulemuste leheks ja ükski mäng ei saaks kunagi lõppenuks.
+const isGuardPage = (html: string) => !html.includes("<article") && html.includes("challenges.cloudflare.com/turnstile");
+
 /** Lehe sisuosa: ülal on mängude karussell, mille numbrid ei tohi tabelitega segi minna. */
 async function fetchPage(path: string, revalidate = PAGE_REVALIDATE): Promise<string> {
   const html = await fetchText(`${SITE}/${path}`, { next: { revalidate } });
+  if (isGuardPage(html)) throw new SourceBlockedError(SOURCE);
   const start = html.indexOf("<article");
   return start >= 0 ? html.slice(start) : html;
 }
@@ -141,22 +149,33 @@ function parseGameRows(html: string, played: boolean): RawGame[] {
 
 // Sama protsessi päringud jagavad 30 s üht mängukava (boxscore'id ja MVP vajavad seda samuti).
 const SEASON_MEMO_MS = 30 * 1000;
-let seasonMemo: { at: number; games: Promise<RawGame[]> } | null = null;
+interface Season {
+  games: RawGame[];
+  /** Tulemuste leht on turvakontrolli taga: mängud on ainult ajakavast, lõppenud mänge ega skoore pole. */
+  resultsBlocked: boolean;
+}
 
-function fetchSeason(): Promise<RawGame[]> {
-  if (seasonMemo && Date.now() - seasonMemo.at < SEASON_MEMO_MS) return seasonMemo.games;
-  const games = Promise.all([fetchPage("tulemused"), fetchPage("ajakava")]).then(([results, schedule]) => {
-    const played = parseGameRows(results, true);
+let seasonMemo: { at: number; season: Promise<Season> } | null = null;
+
+function fetchSeason(): Promise<Season> {
+  if (seasonMemo && Date.now() - seasonMemo.at < SEASON_MEMO_MS) return seasonMemo.season;
+  // Blokeeritud tulemuste leht ei võta ajakava maha; muu viga (võrk, 5xx) katkestab nagu ennegi.
+  const resultsPage = fetchPage("tulemused").catch((error: unknown) => {
+    if (error instanceof SourceBlockedError) return null;
+    throw error;
+  });
+  const season = Promise.all([resultsPage, fetchPage("ajakava")]).then(([results, schedule]): Season => {
+    const played = results === null ? [] : parseGameRows(results, true);
     const ids = new Set(played.map((game) => game.id));
     const games = [...played, ...parseGameRows(schedule, false).filter((game) => !ids.has(game.id))];
     if (games.length === 0) throw new Error("Est-Lat liiga mängukava ei õnnestunud lugeda");
-    return games;
+    return { games, resultsBlocked: results === null };
   });
-  games.catch(() => {
+  season.catch(() => {
     seasonMemo = null;
   });
-  seasonMemo = { at: Date.now(), games };
-  return games;
+  seasonMemo = { at: Date.now(), season };
+  return season;
 }
 
 type Records = Map<string, { wins: number; losses: number }>;
@@ -191,7 +210,7 @@ function toTeamSide(side: RawSide, score: number | null, winner: boolean, record
   };
 }
 
-function toGame(game: RawGame, records: Records, now: number): NbaGame {
+function toGame(game: RawGame, records: Records, now: number, resultsBlocked: boolean): NbaGame {
   const start = Date.parse(game.start);
   let state: NbaGameState;
   let status: string;
@@ -201,6 +220,10 @@ function toGame(game: RawGame, records: Records, now: number): NbaGame {
   } else if (now < start) {
     state = "pre";
     status = "STATUS_SCHEDULED";
+  } else if (resultsBlocked) {
+    // Skoori ega lõppu ei saa teada: ei "käimas" (boxscore'i poleks) ega "ootab tulemust" (seda ei tule).
+    state = "post";
+    status = "STATUS_RESULT_UNAVAILABLE";
   } else if (now - start < LIVE_WINDOW_MS) {
     state = "in";
     status = "STATUS_IN_PROGRESS";
@@ -233,18 +256,28 @@ function toGame(game: RawGame, records: Records, now: number): NbaGame {
   };
 }
 
-async function seasonGames(now: number): Promise<{ raw: RawGame[]; games: NbaGame[] }> {
-  const raw = await fetchSeason();
+async function seasonGames(now: number): Promise<{ raw: RawGame[]; games: NbaGame[]; resultsBlocked: boolean }> {
+  const { games: raw, resultsBlocked } = await fetchSeason();
   const records = recordsOf(raw);
-  return { raw, games: raw.map((game) => toGame(game, records, now)) };
+  return { raw, games: raw.map((game) => toGame(game, records, now, resultsBlocked)), resultsBlocked };
+}
+
+/**
+ * Statistika (parimad, MVP, profiil) arvutatakse lõppenud mängudest: ilma tulemuste leheta oleks vastus
+ * vaikimisi tühi, seega viga, mille route edastab blokeeritud allikana.
+ */
+async function seasonWithResults(now: number): Promise<{ raw: RawGame[]; games: NbaGame[] }> {
+  const season = await seasonGames(now);
+  if (season.resultsBlocked) throw new SourceBlockedError(SOURCE);
+  return season;
 }
 
 /** Mängupäevad Eesti aja järgi; liiga ei avalda mänguülevaate videoid, seega recap'e pole. */
 export async function getGameDays(period: NbaPeriod): Promise<NbaGamesResponse> {
   const now = Date.now();
   const today = tallinnDate(new Date(now).toISOString());
-  const { games } = await seasonGames(now);
-  return { today, days: groupGameDays(games, today, period) };
+  const { games, resultsBlocked } = await seasonGames(now);
+  return { today, days: groupGameDays(games, today, period), resultsBlocked };
 }
 
 // --- Mängijate fotod ---
@@ -503,7 +536,8 @@ export async function getFinalBoxscore(id: string): Promise<NbaBoxscore> {
 // --- Parimad sooritused ---
 
 export async function getLeaders(period: NbaPeriod): Promise<NbaLeadersResponse> {
-  const { today, days } = await getGameDays(period);
+  const { today, days, resultsBlocked } = await getGameDays(period);
+  if (resultsBlocked) throw new SourceBlockedError(SOURCE);
   const [leaders, photos] = await Promise.all([
     buildLeaders({
       league: "estlat",
@@ -556,7 +590,7 @@ interface Totals {
  */
 export async function getMvpRace(): Promise<NbaMvpResponse> {
   const now = Date.now();
-  const [{ raw, games }, photos] = await Promise.all([seasonGames(now), playerPhotos()]);
+  const [{ raw, games }, photos] = await Promise.all([seasonWithResults(now), playerPhotos()]);
   const played = games.filter((game) => game.completed);
   const boxscores = await settleWithLimit(played, BOXSCORE_CONCURRENCY, (game) => cachedFinalBoxscore(game.id));
 
@@ -643,7 +677,7 @@ export const isPlayerId = (id: string) => /^[A-Z0-9]{2,5}-[a-z0-9-]{2,80}$/.test
  */
 export async function getPlayerProfile(id: string): Promise<NbaPlayerProfile | null> {
   const club = id.slice(0, id.indexOf("-"));
-  const { games } = await seasonGames(Date.now());
+  const { games } = await seasonWithResults(Date.now());
   const played = games.filter((game) => game.completed && (game.home.abbreviation === club || game.away.abbreviation === club));
   const boxscores = await settleWithLimit(played, BOXSCORE_CONCURRENCY, (game) => cachedFinalBoxscore(game.id));
   const profile = profileFromBoxscores(
@@ -668,7 +702,7 @@ export async function getPlayerProfile(id: string): Promise<NbaPlayerProfile | n
 /** Turniiritabel: "1. VEF Rīga | MA | VÕ | KA | PNK | % | PTS+ | PTS- | +/- | H | A | OT | L10". */
 export async function getStandings(): Promise<NbaStandingsResponse> {
   const now = Date.now();
-  const [html, raw] = await Promise.all([fetchPage("turniiritabel"), fetchSeason()]);
+  const [html, { games: raw }] = await Promise.all([fetchPage("turniiritabel"), fetchSeason()]);
   const [table] = tablesOf(html);
   if (!table) throw new Error("Turniiritabelit ei leitud");
 

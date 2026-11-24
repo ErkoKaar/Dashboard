@@ -10,7 +10,17 @@ import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import { mvpRaceQuery, NbaMvpEntry, useNbaMvpRace } from "@/lib/queries/useNba";
 import { LeagueConfig, useLeague } from "./league";
 import { usePlayerProfile } from "./PlayerProfile";
-import { Avatar, cardBackground, CountUpNumber, Cutout, preloadCutout, StatCell, StatGrid, teamToneCss } from "./shared";
+import {
+  Avatar,
+  cardBackground,
+  CountUpNumber,
+  Cutout,
+  loadErrorHint,
+  preloadCutout,
+  StatCell,
+  StatGrid,
+  teamToneCss,
+} from "./shared";
 
 // MVP race: hooaja 10 parimat EFF järgi. Iga mängija on vaikne rida, mille all joon näitab EFF-i
 // liidriga võrreldes (ilma taustarajata: joon ise on võidujooks). Klõps avab rea asemel tiimivärvi
@@ -263,7 +273,7 @@ export function PrefetchMvpRace() {
 
 export function NbaMvpRace() {
   const league = useLeague();
-  const { data, isPending, isFetching, refetch } = useNbaMvpRace(league.id);
+  const { data, error, isPending, isFetching, refetch } = useNbaMvpRace(league.id);
   // undefined = kasutaja pole veel klõpsanud: lahti on liider ja tema EFF loeb end üles.
   // null = kõik kaardid kinni.
   const [openId, setOpenId] = useState<string | null | undefined>(undefined);
@@ -301,7 +311,7 @@ export function NbaMvpRace() {
       <div className="flex flex-col items-start gap-4">
         <div>
           <p className="text-sm text-foreground">Edetabelit ei saanud laadida.</p>
-          <p className="mt-1 text-xs text-muted">Andmeallika liides võis muutuda või on ajutiselt maas.</p>
+          <p className="mt-1 text-xs text-muted">{loadErrorHint(error)}</p>
         </div>
         <Button variant="ghost" onClick={() => refetch()} disabled={isFetching}>
           <RotateCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} aria-hidden />

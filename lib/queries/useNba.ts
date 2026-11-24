@@ -71,6 +71,8 @@ export interface NbaGameDay {
 export interface NbaGamesResponse {
   today: string;
   days: NbaGameDay[];
+  /** Allikas blokeerib tulemuste lehe (Est-Lat): mängud on ainult ajakavast, lõppenud mänge ega skoore pole. */
+  resultsBlocked?: boolean;
 }
 
 export interface NbaPlayerLine {
@@ -275,12 +277,23 @@ export interface NbaStandingsResponse {
 // vahemälus. keepPreviousData: ajavahemiku vahetusel jäävad vanad andmed tuhmilt näha,
 // kuni uued jõuavad.
 
+/** Allikas blokeerib serveri päringud: püsiv seis, mitte ajutine rike (route: lib/basketball/http.ts blockedResponse). */
+export class SourceBlockedError extends Error {}
+
+async function loadError(res: Response, message: string): Promise<Error> {
+  if (res.status === 503) {
+    const body: { code?: unknown } | null = await res.json().catch(() => null);
+    if (body?.code === "source_blocked") return new SourceBlockedError(message);
+  }
+  return new Error(message);
+}
+
 export function useNbaGames(period: NbaPeriod, league: League) {
   return useQuery({
     queryKey: [league, "games", period],
     queryFn: async ({ signal }): Promise<NbaGamesResponse> => {
       const res = await apiFetch(`/api/${league}/games?period=${period}`, { signal });
-      if (!res.ok) throw new Error("Mängude laadimine ebaõnnestus");
+      if (!res.ok) throw await loadError(res, "Mängude laadimine ebaõnnestus");
       return res.json();
     },
     placeholderData: keepPreviousData,
@@ -301,7 +314,7 @@ export function useNbaBoxscore(gameId: string, completed: boolean, league: Leagu
       const query = new URLSearchParams({ id: gameId });
       if (completed) query.set("final", "1");
       const res = await apiFetch(`/api/${league}/boxscore?${query}`, { signal });
-      if (!res.ok) throw new Error("Boxscore'i laadimine ebaõnnestus");
+      if (!res.ok) throw await loadError(res, "Boxscore'i laadimine ebaõnnestus");
       return res.json();
     },
     staleTime: completed ? Infinity : 15 * 1000,
@@ -314,7 +327,7 @@ export function useNbaLeaders(period: NbaPeriod, league: League) {
     queryKey: [league, "leaders", period],
     queryFn: async ({ signal }): Promise<NbaLeadersResponse> => {
       const res = await apiFetch(`/api/${league}/leaders?period=${period}`, { signal });
-      if (!res.ok) throw new Error("Statistika laadimine ebaõnnestus");
+      if (!res.ok) throw await loadError(res, "Statistika laadimine ebaõnnestus");
       return res.json();
     },
     placeholderData: keepPreviousData,
@@ -329,7 +342,7 @@ export function mvpRaceQuery(league: League) {
     queryKey: [league, "mvp"],
     queryFn: async ({ signal }): Promise<NbaMvpResponse> => {
       const res = await apiFetch(`/api/${league}/mvp`, { signal });
-      if (!res.ok) throw new Error("MVP race'i laadimine ebaõnnestus");
+      if (!res.ok) throw await loadError(res, "MVP race'i laadimine ebaõnnestus");
       return res.json();
     },
     // Hooaja keskmised muutuvad ainult mängude lõppedes; server hoiab neid tund aega.
@@ -346,7 +359,7 @@ export function useNbaStandings(league: League) {
     queryKey: [league, "standings"],
     queryFn: async ({ signal }): Promise<NbaStandingsResponse> => {
       const res = await apiFetch(`/api/${league}/standings`, { signal });
-      if (!res.ok) throw new Error("Tabeli laadimine ebaõnnestus");
+      if (!res.ok) throw await loadError(res, "Tabeli laadimine ebaõnnestus");
       return res.json();
     },
     // Tabel muutub ainult mängude lõppedes; server hoiab seda 5 minutit.
@@ -361,7 +374,7 @@ export function useNbaPlayerProfile(league: League, playerId: string | null) {
     queryKey: [league, "player", playerId],
     queryFn: async ({ signal }): Promise<NbaPlayerProfile> => {
       const res = await apiFetch(`/api/${league}/player?id=${encodeURIComponent(playerId ?? "")}`, { signal });
-      if (!res.ok) throw new Error("Profiili laadimine ebaõnnestus");
+      if (!res.ok) throw await loadError(res, "Profiili laadimine ebaõnnestus");
       return res.json();
     },
     enabled: playerId !== null,

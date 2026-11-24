@@ -3,10 +3,11 @@
 import { RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { NbaGame, NbaPlayerLine, NbaTeamBox, useNbaBoxscore } from "@/lib/queries/useNba";
+import { NbaGame, NbaPlayerLine, NbaTeamBox, SourceBlockedError, useNbaBoxscore } from "@/lib/queries/useNba";
 import { useLeague } from "./league";
 import { PlayerButton } from "./PlayerProfile";
 import { TeamLogo } from "./media";
+import { SOURCE_BLOCKED_HINT } from "./shared";
 
 type StatLine = Omit<NbaPlayerLine, "id" | "name" | "shortName" | "position" | "headshot" | "starter" | "didNotPlay">;
 
@@ -149,7 +150,7 @@ function TeamTable({ team }: { team: NbaTeamBox }) {
 
 export function NbaBoxscore({ game }: { game: NbaGame }) {
   const league = useLeague();
-  const { data, isPending, isFetching, refetch } = useNbaBoxscore(game.id, game.completed, league.id);
+  const { data, error, isPending, isFetching, refetch } = useNbaBoxscore(game.id, game.completed, league.id);
 
   if (data) {
     if (data.teams.length === 0) {
@@ -176,7 +177,9 @@ export function NbaBoxscore({ game }: { game: NbaGame }) {
 
   return (
     <div className="flex flex-wrap items-center gap-3 py-2">
-      <p className="text-sm text-muted">Boxscore&apos;i ei saanud laadida.</p>
+      <p className="text-sm text-muted">
+        Boxscore&apos;i ei saanud laadida.{error instanceof SourceBlockedError && ` ${SOURCE_BLOCKED_HINT}`}
+      </p>
       <Button variant="ghost" onClick={() => refetch()} disabled={isFetching} className="!px-3 !py-1.5 text-xs">
         <RotateCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} aria-hidden />
         Proovi uuesti

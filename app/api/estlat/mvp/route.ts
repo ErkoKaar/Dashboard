@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { blockedResponse } from "@/lib/basketball/http";
 import { getMvpRace } from "@/lib/estlat/api";
 import { requireUser } from "@/lib/server/requireUser";
 
@@ -14,6 +15,6 @@ export async function GET(request: Request) {
     return NextResponse.json(await getMvpRace());
   } catch (error) {
     console.error("[estlat/mvp]", error);
-    return NextResponse.json({ error: "Est-Lat liiga MVP race'i laadimine ebaõnnestus" }, { status: 502 });
+    return blockedResponse(error) ?? NextResponse.json({ error: "Est-Lat liiga MVP race'i laadimine ebaõnnestus" }, { status: 502 });
   }
 }

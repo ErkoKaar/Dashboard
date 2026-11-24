@@ -11,7 +11,7 @@ import { NbaLeaderMetric, NbaPerformance, NbaPeriod, NbaStatLine, useNbaLeaders 
 import { useRecapPlayer } from "./RecapPlayer";
 import { LeagueConfig, useLeague } from "./league";
 import { PlayerButton, PlayerPreview } from "./PlayerProfile";
-import { Avatar, cardBackground, CountUpNumber, Cutout, StatGrid } from "./shared";
+import { Avatar, cardBackground, CountUpNumber, Cutout, loadErrorHint, StatGrid } from "./shared";
 
 // esthoop.ee "Parimad sooritused" eeskujul: nr 1 on kangelaskaart, 2-3 tiimivärvi kaardid,
 // 4-10 read. Igal real täis statistikariba; kõik numbrid on ühe mängu täisarvud.
@@ -231,7 +231,7 @@ function TopSkeleton({ slow }: { slow: boolean }) {
 
 export function NbaLeadersCard({ period }: { period: NbaPeriod }) {
   const league = useLeague();
-  const { data, isPending, isFetching, isPlaceholderData, refetch } = useNbaLeaders(period, league.id);
+  const { data, error, isPending, isFetching, isPlaceholderData, refetch } = useNbaLeaders(period, league.id);
   const [metric, setMetric] = useState<NbaLeaderMetric>("eff");
   const top = data?.top[metric] ?? [];
 
@@ -284,7 +284,7 @@ export function NbaLeadersCard({ period }: { period: NbaPeriod }) {
       <div className="flex flex-col items-start gap-4">
         <div>
           <p className="text-sm text-foreground">Statistikat ei saanud laadida.</p>
-          <p className="mt-1 text-xs text-muted">Andmeallika liides võis muutuda või on ajutiselt maas.</p>
+          <p className="mt-1 text-xs text-muted">{loadErrorHint(error)}</p>
         </div>
         <Button variant="ghost" onClick={() => refetch()} disabled={isFetching}>
           <RotateCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} aria-hidden />

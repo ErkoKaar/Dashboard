@@ -9,6 +9,7 @@ import { WidgetTitle } from "@/components/ui/WidgetTitle";
 import { League, NbaStandingsGroup, NbaStandingsRow, useNbaStandings } from "@/lib/queries/useNba";
 import { LeagueConfig, useLeague } from "./league";
 import { TeamLogo } from "./media";
+import { loadErrorHint } from "./shared";
 
 // Põhiturniiri tabel. Tsoonid tulevad liigalt (NBA ja EuroLeague: 1-6 play-off, 7-10 play-in; Est-Lat:
 // 1-8 play-off; Europe Cup: 1-2 edasi): täisjoon play-off'i ja katkendjoon play-in'i piiril, kohanumbri
@@ -217,7 +218,7 @@ function StandingsSkeleton({ groups }: { groups: number }) {
 
 export function StandingsCard() {
   const league = useLeague();
-  const { data, isPending, isFetching, refetch } = useNbaStandings(league.id);
+  const { data, error, isPending, isFetching, refetch } = useNbaStandings(league.id);
 
   let body: ReactNode;
   if (data && data.groups.length > 0) {
@@ -240,7 +241,7 @@ export function StandingsCard() {
       <div className="flex flex-col items-start gap-4">
         <div>
           <p className="text-sm text-foreground">Tabelit ei saanud laadida.</p>
-          <p className="mt-1 text-xs text-muted">Andmeallika liides võis muutuda või on ajutiselt maas.</p>
+          <p className="mt-1 text-xs text-muted">{loadErrorHint(error)}</p>
         </div>
         <Button variant="ghost" onClick={() => refetch()} disabled={isFetching}>
           <RotateCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} aria-hidden />

@@ -29,6 +29,24 @@ export async function fetchText(url: string, init: RequestInit): Promise<string>
   return (await request(url, init)).text();
 }
 
+/**
+ * Allikas vastas päris lehe asemel boti turvakontrolliga (HTTP 200): andmeid sealt serverist ei saa
+ * ja kordamine ei aita. Eraldi klass, et route saaks seda ajutisest rikkest eristada.
+ */
+export class SourceBlockedError extends Error {
+  constructor(source: string) {
+    super(`${source} nõuab turvakontrolli`);
+    this.name = "SourceBlockedError";
+  }
+}
+
+/** Route'i vastus blokeeritud allika korral, muu vea korral null. Klient tunneb selle ära koodi järgi (useNba.ts). */
+export function blockedResponse(error: unknown): Response | null {
+  return error instanceof SourceBlockedError
+    ? Response.json({ error: "Allikas blokeerib automaatpäringud", code: "source_blocked" }, { status: 503 })
+    : null;
+}
+
 // Lingid lähevad otse href-i: ainult http(s), et vastusesse sattunud "javascript:" ei saaks käivituda.
 export function safeUrl(value: string | undefined): string | null {
   return value && /^https?:\/\//i.test(value) ? value : null;

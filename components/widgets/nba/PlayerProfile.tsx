@@ -4,9 +4,15 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useId, us
 import { RotateCw, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { NbaPlayerProfile, NbaProfileGame, NbaSeasonAverages, useNbaPlayerProfile } from "@/lib/queries/useNba";
+import {
+  NbaPlayerProfile,
+  NbaProfileGame,
+  NbaSeasonAverages,
+  SourceBlockedError,
+  useNbaPlayerProfile,
+} from "@/lib/queries/useNba";
 import { LeagueConfig, useLeague } from "./league";
-import { cardBackground, Cutout, StatCell, StatGrid } from "./shared";
+import { cardBackground, Cutout, SOURCE_BLOCKED_HINT, StatCell, StatGrid } from "./shared";
 
 // Mängija profiil: avaneb mängija nimele vajutades (boxscore, parimad sooritused, parimad mängijad).
 // Üks aken kogu liigavaate kohta nagu RecapPlayer. Päis tuleb kohe klõpsatud kohast (PlayerPreview), et
@@ -144,7 +150,7 @@ function GameRow({ game }: { game: NbaProfileGame }) {
 
 function ProfileBody({ preview, onClose }: { preview: PlayerPreview; onClose: () => void }) {
   const league = useLeague();
-  const { data, isPending, isFetching, refetch } = useNbaPlayerProfile(league.id, preview.id);
+  const { data, error, isPending, isFetching, refetch } = useNbaPlayerProfile(league.id, preview.id);
   const titleId = useId();
 
   const name = data?.player.name ?? preview.name;
@@ -191,7 +197,10 @@ function ProfileBody({ preview, onClose }: { preview: PlayerPreview; onClose: ()
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm text-muted">Profiili ei saanud laadida. Allikas ei pruugi selle mängija andmeid anda.</p>
+            <p className="text-sm text-muted">
+              Profiili ei saanud laadida.{" "}
+              {error instanceof SourceBlockedError ? SOURCE_BLOCKED_HINT : "Allikas ei pruugi selle mängija andmeid anda."}
+            </p>
             <Button variant="ghost" onClick={() => refetch()} disabled={isFetching} className="!px-3 !py-1.5 text-xs">
               <RotateCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} aria-hidden />
               Proovi uuesti

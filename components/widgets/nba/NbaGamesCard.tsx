@@ -13,6 +13,7 @@ import { NbaBoxscore } from "./NbaBoxscore";
 import { useRecapPlayer } from "./RecapPlayer";
 import { useLeague } from "./league";
 import { TeamLogo } from "./media";
+import { loadErrorHint } from "./shared";
 
 const TALLINN = "Europe/Tallinn";
 
@@ -46,6 +47,8 @@ function statusText(game: NbaGame): string {
       return "Hilineb";
     case "STATUS_RESULT_PENDING":
       return "Ootab tulemust";
+    case "STATUS_RESULT_UNAVAILABLE":
+      return "Tulemus pole saadaval";
   }
   // EuroLeague'i mängukava ei anna veerandit ega kella: siis ainult "Käimas".
   if (game.state === "in") return game.period ? `${periodLabel(game.period)} ${game.clock}` : "Käimas";
@@ -252,7 +255,7 @@ function GamesSkeleton() {
 
 export function NbaGamesCard({ period }: { period: NbaPeriod }) {
   const league = useLeague();
-  const { data, isPending, isFetching, isPlaceholderData, refetch } = useNbaGames(period, league.id);
+  const { data, error, isPending, isFetching, isPlaceholderData, refetch } = useNbaGames(period, league.id);
   const [openGameId, setOpenGameId] = useState<string | null>(null);
   const gameCount = data?.days.reduce((count, day) => count + day.games.length, 0) ?? 0;
 
@@ -290,7 +293,10 @@ export function NbaGamesCard({ period }: { period: NbaPeriod }) {
             </section>
           ))}
         </div>
-        <p className="mt-3 text-[11px] text-muted/70">{league.dayNote}</p>
+        <p className="mt-3 text-[11px] text-muted/70">
+          {league.dayNote}
+          {data.resultsBlocked && " Allikas blokeerib tulemuste lehe: lõppenud mänge ja skoore ei saa näidata."}
+        </p>
       </>
     );
   } else if (isPending) {
@@ -300,7 +306,7 @@ export function NbaGamesCard({ period }: { period: NbaPeriod }) {
       <div className="flex flex-1 flex-col items-start justify-center gap-4">
         <div>
           <p className="text-sm text-foreground">Mänge ei saanud laadida.</p>
-          <p className="mt-1 text-xs text-muted">Andmeallika liides võis muutuda või on ajutiselt maas.</p>
+          <p className="mt-1 text-xs text-muted">{loadErrorHint(error)}</p>
         </div>
         <Button variant="ghost" onClick={() => refetch()} disabled={isFetching}>
           <RotateCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} aria-hidden />

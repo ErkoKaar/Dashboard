@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { blockedResponse } from "@/lib/basketball/http";
 import { getFinalBoxscore, getLiveBoxscore, isGameId } from "@/lib/estlat/api";
 import { requireUser } from "@/lib/server/requireUser";
 
@@ -24,6 +25,6 @@ export async function GET(request: Request) {
     return NextResponse.json(await getLiveBoxscore(id));
   } catch (error) {
     console.error("[estlat/boxscore]", error);
-    return NextResponse.json({ error: "Boxscore'i laadimine ebaõnnestus" }, { status: 502 });
+    return blockedResponse(error) ?? NextResponse.json({ error: "Boxscore'i laadimine ebaõnnestus" }, { status: 502 });
   }
 }

@@ -1,12 +1,24 @@
 "use client";
 
 import { CSSProperties, useState } from "react";
+import { SourceBlockedError } from "@/lib/queries/useNba";
 import { useCountUp } from "@/lib/useCountUp";
 import { useLeague } from "./league";
 import { resizedImage } from "./media";
 import { useWithoutBackground, withoutBackground } from "./whiteBackground";
 
 // Parimate soorituste ja MVP race'i ühised osad: tiimivärv, mängija väljalõige, avatar, statistikariba.
+
+// --- Veateade ---
+
+export const SOURCE_BLOCKED_HINT = "Allika leht nõuab turvakontrolli ja blokeerib automaatpäringud.";
+
+/** Veateate teine rida: blokeeritud allikas on püsiv seis ("Proovi uuesti" ei aita), muu on ilmselt ajutine. */
+export function loadErrorHint(error: unknown): string {
+  return error instanceof SourceBlockedError
+    ? SOURCE_BLOCKED_HINT
+    : "Andmeallika liides võis muutuda või on ajutiselt maas.";
+}
 
 // --- Tiimivärv ---
 

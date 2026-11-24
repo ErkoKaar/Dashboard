@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { blockedResponse } from "@/lib/basketball/http";
 import { parsePeriod } from "@/lib/basketball/period";
 import { getGameDays } from "@/lib/estlat/api";
 import { requireUser } from "@/lib/server/requireUser";
@@ -16,6 +17,6 @@ export async function GET(request: Request) {
     return NextResponse.json(await getGameDays(period));
   } catch (error) {
     console.error("[estlat/games]", error);
-    return NextResponse.json({ error: "Est-Lat liiga mängude laadimine ebaõnnestus" }, { status: 502 });
+    return blockedResponse(error) ?? NextResponse.json({ error: "Est-Lat liiga mängude laadimine ebaõnnestus" }, { status: 502 });
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { blockedResponse } from "@/lib/basketball/http";
 import { parsePeriod } from "@/lib/basketball/period";
 import { getLeaders } from "@/lib/estlat/api";
 import { requireUser } from "@/lib/server/requireUser";
@@ -18,6 +19,6 @@ export async function GET(request: Request) {
     return NextResponse.json(await getLeaders(period));
   } catch (error) {
     console.error("[estlat/leaders]", error);
-    return NextResponse.json({ error: "Est-Lat liiga statistika laadimine ebaõnnestus" }, { status: 502 });
+    return blockedResponse(error) ?? NextResponse.json({ error: "Est-Lat liiga statistika laadimine ebaõnnestus" }, { status: 502 });
   }
 }
