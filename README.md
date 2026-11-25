@@ -161,7 +161,7 @@ flowchart LR
   subgraph Next["Next.js route handlers (Vercel fra1)"]
     API["/api/*<br/>session check"]
   end
-  PUB["Public APIs<br/>Open-Meteo, Chess.com,<br/>EstHoop, Delfi"]
+  PUB["Public APIs<br/>Open-Meteo, Chess.com,<br/>Delfi"]
   EXT["Google Calendar, ESPN,<br/>EuroLeague, estlatbl.com,<br/>fiba.basketball, YouTube, EstHoop"]
   UI --> TM
   UI --> FT
@@ -202,7 +202,7 @@ flowchart LR
    |---|---|
    | `NEXT_PUBLIC_TASKS_SUPABASE_URL`, `_ANON_KEY` | TaskManager Supabase project (tasks, habits, projects, notes, files) |
    | `NEXT_PUBLIC_FINANCE_SUPABASE_URL`, `_ANON_KEY` | FinanceTracker Supabase project |
-   | `NEXT_PUBLIC_ESTHOOP_API_URL` | EstHoop backend; its CORS list must include this dashboard's origin |
+   | `NEXT_PUBLIC_ESTHOOP_API_URL` | EstHoop backend; called only from the route handlers, so no CORS entry is needed |
    | `NEXT_PUBLIC_CHESS_USERNAME` | Chess.com username |
    | `DASHBOARD_ALLOWED_USER_ID` | Server only, required: the one TaskManager user the API serves; without it every API request is refused |
    | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` | Server only: Google Calendar |
@@ -246,6 +246,7 @@ app/
     calendar/              Google Calendar (OAuth refresh token)
     nba/, euroleague/, estlat/
                            games, boxscore, leaders, mvp, standings per league
+    esthoop/               National team games, box scores and players (proxy)
     esthoop-club-*/        Club games of national team players
     finance-pin/           PIN check for the Finance widget
     widget/                Read-only data for the iPhone widget (own token)

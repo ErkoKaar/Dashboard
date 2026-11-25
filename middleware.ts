@@ -22,7 +22,6 @@ export function middleware(request: NextRequest) {
     "'self'",
     origin(process.env.NEXT_PUBLIC_TASKS_SUPABASE_URL),
     origin(process.env.NEXT_PUBLIC_FINANCE_SUPABASE_URL),
-    origin(process.env.NEXT_PUBLIC_ESTHOOP_API_URL),
     "https://api.chess.com",
     "https://api.open-meteo.com",
     "https://content.api.delfi.ee",

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/apiFetch";
 import { IS_DEMO } from "@/lib/demo/mode";
 
 export interface EstHoopEvent {
@@ -21,12 +22,11 @@ export function useEstHoopGames() {
   return useQuery({
     queryKey: ["esthoop-games"],
     queryFn: async (): Promise<EstHoopGames> => {
-      // Demo projekt pole EstHoopi CORS-i loendis: koondise mängud tulevad avalike andmete tõmmisest.
+      // Demos tulevad koondise mängud avalike andmete tõmmisest.
       if (IS_DEMO) return (await import("@/lib/demo/fixtures")).demoEstHoopGames();
-      const baseUrl = process.env.NEXT_PUBLIC_ESTHOOP_API_URL;
-      if (!baseUrl) throw new Error("NEXT_PUBLIC_ESTHOOP_API_URL puudub");
 
-      const res = await fetch(`${baseUrl}/national-team/games`);
+      // Läbi serveri (app/api/esthoop): backend'i CORS dashboardi ei luba.
+      const res = await apiFetch("/api/esthoop/national-team/games");
       if (!res.ok) throw new Error("EstHoop andmete laadimine ebaõnnestus");
       return res.json();
     },
@@ -65,13 +65,11 @@ export function useEstHoopTopScorer() {
     queryKey: ["esthoop-top-scorer"],
     queryFn: async (): Promise<EstHoopTopScorer | null> => {
       if (IS_DEMO) return (await import("@/lib/demo/fixtures")).DEMO_ESTHOOP_TOP_SCORER;
-      const baseUrl = process.env.NEXT_PUBLIC_ESTHOOP_API_URL;
-      if (!baseUrl) throw new Error("NEXT_PUBLIC_ESTHOOP_API_URL puudub");
 
       const [gamesRes, boxScoresRes, playersRes] = await Promise.all([
-        fetch(`${baseUrl}/national-team/games`),
-        fetch(`${baseUrl}/national-team/game-stats`),
-        fetch(`${baseUrl}/players`),
+        apiFetch("/api/esthoop/national-team/games"),
+        apiFetch("/api/esthoop/national-team/game-stats"),
+        apiFetch("/api/esthoop/players"),
       ]);
       if (!gamesRes.ok || !boxScoresRes.ok || !playersRes.ok) {
         throw new Error("EstHoop andmete laadimine ebaõnnestus");
