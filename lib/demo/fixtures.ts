@@ -1,6 +1,7 @@
 import { getCurrentWeekDates, toDateString, todayDate } from "@/lib/date";
 import type { CalendarEvent } from "@/lib/queries/useCalendarEvents";
 import type { ChessStats, ChessTrendPoint } from "@/lib/queries/useChess";
+import type { ClubScheduleGame } from "@/lib/queries/useEstHoopClub";
 import type { EstHoopGames, EstHoopTopScorer } from "@/lib/queries/useEstHoopGames";
 import { DEMO_USER_ID } from "@/lib/demo/mode";
 
@@ -416,3 +417,22 @@ export const DEMO_ESTHOOP_TOP_SCORER: EstHoopTopScorer = {
   ast: 5,
   game: ESTHOOP_GAMES.recent[0],
 };
+
+// --- EstHoop (klubigraafik) -----------------------------------------------------------------------------
+
+// Päris route loeb graafiku privaatsest repost GITHUB_TOKEN-iga, mida demos pole. Klubid, vastased ja
+// mängijad on päris (graafiku tõmmis 26.11.2026), kuupäevad arvutatakse tänase päeva järgi.
+const CLUB_SCHEDULE: [days: number, hour: number, game: Omit<ClubScheduleGame, "id" | "date" | "startTimestamp">][] = [
+  [1, 18, { players: [{ name: "Stefan Vaaks", slug: "stefan-vaaks" }], club: "Illinois Fighting Illini", opponent: "Western Kentucky", home: true, competition: "NCAA" }],
+  [1, 20, { players: [{ name: "Henri Veesaar", slug: "henri-veesaar" }], club: "Atlanta Hawks", opponent: "Boston Celtics", home: false, competition: "NBA" }],
+  [2, 20, { players: [{ name: "Mikk Jurkatamm", slug: "mikk-jurkatamm" }], club: "Victoria Libertas Pesaro", opponent: "Dole Basket Rimini", home: false, competition: "Serie A2" }],
+  [3, 18, { players: [{ name: "Joonas Riismaa", slug: "joonas-riismaa" }], club: "Dinamo Sassari", opponent: "Unieuro Forli", home: true, competition: "Serie A2" }],
+  [5, 19, { players: [{ name: "Martin Paasoja", slug: "martin-paasoja" }, { name: "Märt Rosenthal", slug: "mart-rosenthal" }], club: "Tartu Ülikool Maks & Moorits", opponent: "Keila Basket", home: true, competition: "EL liiga" }],
+];
+
+export function demoClubSchedule(): ClubScheduleGame[] {
+  return CLUB_SCHEDULE.map(([days, hour, game]) => {
+    const date = dayOffset(days);
+    return { ...game, id: `${game.club}|${date}`, date, startTimestamp: Math.floor(at(date, hour).getTime() / 1000) };
+  });
+}

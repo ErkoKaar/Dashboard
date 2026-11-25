@@ -9,7 +9,7 @@ export const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
 export const DEMO_USER_ID = "demo-user";
 
 /** Route'id, mis on demos sisselogimiseta lahti: avalikud spordiandmed, mitte ühtegi salajast võtit. */
-export const DEMO_PUBLIC_API = /^\/api\/(nba|euroleague|estlat|europecup|esthoop-club-schedule|esthoop-club-results)(\/|$)/;
+export const DEMO_PUBLIC_API = /^\/api\/(nba|euroleague|estlat|europecup|esthoop-club-results)(\/|$)/;
 
 export const DEMO_SESSION: Session = {
   access_token: "demo",

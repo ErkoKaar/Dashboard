@@ -3,10 +3,11 @@ import type { ClubPlayer, ClubScheduleGame } from "@/lib/queries/useEstHoopClub"
 import { requireUser } from "@/lib/server/requireUser";
 
 // Klubide mängugraafik elab EstHoopi frontendi bundle'is (src/data/...), mitte
-// backendi API-s — loeme selle otse avalikust repost, et graafiku muudatused
-// jõuaksid siia ilma faili kopeerimata. Hooaja vahetumisel tuleb URL uuendada.
+// backendi API-s — loeme selle otse repost, et graafiku muudatused jõuaksid siia
+// ilma faili kopeerimata. Repo on privaatne, seega GitHubi API kaudu GITHUB_TOKEN-iga
+// (vajab selle repo lugemisõigust). Hooaja vahetumisel tuleb URL uuendada.
 const SCHEDULE_URL =
-  "https://raw.githubusercontent.com/ErkoKaar/EstHoop/main/frontend/src/data/klubide_graafikud_2026-27.json";
+  "https://api.github.com/repos/ErkoKaar/EstHoop/contents/frontend/src/data/klubide_graafikud_2026-27.json?ref=main";
 
 const LIMIT = 5;
 const TALLINN = "Europe/Tallinn";
@@ -128,14 +129,31 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "NEXT_PUBLIC_ESTHOOP_API_URL puudub" }, { status: 500 });
   }
 
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    return NextResponse.json({ error: "GITHUB_TOKEN puudub" }, { status: 500 });
+  }
+
   let schedule: ScheduleJson;
   let players: EstHoopPlayer[];
   try {
     const [scheduleRes, playersRes] = await Promise.all([
-      fetch(SCHEDULE_URL, { next: { revalidate: REVALIDATE } }),
+      fetch(SCHEDULE_URL, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          // Faili sisu otse, mitte base64 ümbrises.
+          Accept: "application/vnd.github.raw+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+        next: { revalidate: REVALIDATE },
+      }),
       fetch(`${baseUrl}/players`, { next: { revalidate: REVALIDATE } }),
     ]);
-    if (!scheduleRes.ok || !playersRes.ok) throw new Error("upstream");
+    if (!scheduleRes.ok || !playersRes.ok) {
+      // 404 graafikult tähendab enamasti, et tokenil pole privaatse repo lugemisõigust.
+      console.error(`Klubigraafik: GitHub ${scheduleRes.status}, EstHoop ${playersRes.status}`);
+      throw new Error("upstream");
+    }
     [schedule, players] = await Promise.all([scheduleRes.json(), playersRes.json()]);
   } catch {
     return NextResponse.json({ error: "Klubigraafiku laadimine ebaõnnestus" }, { status: 502 });

@@ -1,9 +1,9 @@
-import { seedCalendarEvents } from "@/lib/demo/fixtures";
+import { demoClubSchedule, seedCalendarEvents } from "@/lib/demo/fixtures";
 import { DEMO_PUBLIC_API } from "@/lib/demo/mode";
 import type { CalendarEvent, NewCalendarEvent } from "@/lib/queries/useCalendarEvents";
 
-// Demo /api: isiklikud teenused (kalender, Finance PIN) vastavad siit, avalikud spordiandmed lähevad
-// päris route'idesse (server lubab demos ainult neid, lib/server/requireUser.ts). Muu on 404.
+// Demo /api: isiklikud teenused (kalender, Finance PIN) ja võtit vajav klubigraafik vastavad siit, avalikud
+// spordiandmed lähevad päris route'idesse (server lubab demos ainult neid, lib/server/requireUser.ts). Muu on 404.
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -54,6 +54,7 @@ export async function demoApiFetch(input: string, init: RequestInit): Promise<Re
 
   if (DEMO_PUBLIC_API.test(pathname)) return fetch(input, init);
   if (pathname === "/api/calendar") return handleCalendar(init);
+  if (pathname === "/api/esthoop-club-schedule") return json({ games: demoClubSchedule() });
   if (pathname === "/api/finance-pin") {
     return json((init.method ?? "GET").toUpperCase() === "POST" ? { ok: true } : { enabled: false });
   }
