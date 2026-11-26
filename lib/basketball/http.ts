@@ -1,5 +1,14 @@
 // Ainult serveris (lib/nba, lib/euroleague, lib/basketball).
 
+import type { League } from "@/lib/queries/useNba";
+
+/**
+ * Silt liiga ajaliselt aeguvatele päringutele (mängud, tabel, MVP, profiilid): vidina värskendusnupp
+ * tühjendab vahemälu selle järgi (app/api/basketball/revalidate). Igaveseks salvestatud lõppenud
+ * mängud ja päev otsa püsivad andmed (tiimid, pildid) silti ei saa.
+ */
+export const leagueTag = (league: League) => `basketball-${league}`;
+
 const RETRY_STATUSES = new Set([429, 503]);
 const MAX_RETRIES = 2;
 

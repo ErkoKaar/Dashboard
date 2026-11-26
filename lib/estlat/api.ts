@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { assertCompleteBoxscore } from "@/lib/basketball/boxscore";
-import { fetchText, settleWithLimit, SourceBlockedError } from "@/lib/basketball/http";
+import { fetchText, leagueTag, settleWithLimit, SourceBlockedError } from "@/lib/basketball/http";
 import { buildLeaders } from "@/lib/basketball/leaders";
 import { groupGameDays } from "@/lib/basketball/period";
 import { profileFromBoxscores } from "@/lib/basketball/profile";
@@ -30,6 +30,8 @@ import { clubColor } from "./colors";
 
 const SITE = "https://www.estlatbl.com/et";
 const PAGE_REVALIDATE = 300;
+/** Värskendusnupu silt (lib/basketball/http.ts leagueTag). */
+const TAGS = [leagueTag("estlat")];
 const TALLINN = "Europe/Tallinn";
 // Mäng koos pausidega: alguse järel nii kaua "käimas", siis ilma tulemuseta "ootab tulemust".
 const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
@@ -68,7 +70,10 @@ const isGuardPage = (html: string) => !html.includes("<article") && html.include
 
 /** Lehe sisuosa: ülal on mängude karussell, mille numbrid ei tohi tabelitega segi minna. */
 async function fetchPage(path: string, revalidate = PAGE_REVALIDATE): Promise<string> {
-  const html = await fetchText(`${SITE}/${path}`, { next: { revalidate } });
+  // Silt ainult lühikese vahemäluga lehtedel: päev otsa püsivaid pildilehti värskendusnupp uuesti ei küsi
+  // (allikal on boti turvakontroll, iga lisapäring loeb).
+  const tags = revalidate === PAGE_REVALIDATE ? TAGS : undefined;
+  const html = await fetchText(`${SITE}/${path}`, { next: { revalidate, tags } });
   if (isGuardPage(html)) throw new SourceBlockedError(SOURCE);
   const start = html.indexOf("<article");
   return start >= 0 ? html.slice(start) : html;

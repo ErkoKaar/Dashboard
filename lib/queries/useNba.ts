@@ -1,4 +1,4 @@
-import { keepPreviousData, queryOptions, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/apiFetch";
 
 // NBA ja EuroLeague kasutavad samu tüüpe (Nba-eesliide on ajalooline): serveri adapterid
@@ -365,6 +365,25 @@ export function useNbaStandings(league: League) {
     // Tabel muutub ainult mängude lõppedes; server hoiab seda 5 minutit.
     staleTime: 5 * 60 * 1000,
     refetchInterval: 10 * 60 * 1000,
+  });
+}
+
+/**
+ * Värskendusnupp: tühjendab liiga serveri vahemälu ja laeb seejärel kõik selle liiga päringud uuesti.
+ * Kui tühjendamine ei õnnestu (võrguviga; demos on route kinni), käib brauseripoolne uuestilaadimine ikka.
+ */
+export function useRefreshLeague(league: League) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      await apiFetch("/api/basketball/revalidate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ league }),
+      }).catch(() => null);
+      // Võti algab liigaga: mängud, boxscore'id, parimad sooritused, MVP, tabel ja profiilid.
+      await queryClient.invalidateQueries({ queryKey: [league] });
+    },
   });
 }
 

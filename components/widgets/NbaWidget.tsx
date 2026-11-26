@@ -1,7 +1,8 @@
 "use client";
 
+import { RefreshCw } from "lucide-react";
 import { useState } from "react";
-import { League, NbaPeriod } from "@/lib/queries/useNba";
+import { League, NbaPeriod, useRefreshLeague } from "@/lib/queries/useNba";
 import { NbaGamesCard } from "./nba/NbaGamesCard";
 import { NbaLeadersCard } from "./nba/NbaLeadersCard";
 import { NbaMvpRace, PrefetchMvpRace } from "./nba/NbaMvpRace";
@@ -62,6 +63,7 @@ function BasketballWidget({ league }: { league: League }) {
   const [view, setView] = useState<View>("games");
   // 3 päeva: hommikul on ka eilsed õhtused mängud näha (EuroLeague'i "Täna" on Eesti kuupäeva järgi).
   const [period, setPeriod] = useState<NbaPeriod>("3d");
+  const refresh = useRefreshLeague(league);
 
   return (
     <LeagueProvider league={league}>
@@ -70,21 +72,37 @@ function BasketballWidget({ league }: { league: League }) {
           {view !== "mvp" && <PrefetchMvpRace />}
           <div className="flex flex-col gap-5">
             <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-4">
-              {/* "Parimad mängijad" (Europe Cup) ei mahu telefonis teistega ühele reale: viimane vaade läheb alla. */}
-              <div role="group" aria-label="Vaade" className="flex flex-wrap items-baseline gap-x-5 gap-y-1 sm:gap-x-7">
-                {VIEWS.map(({ id, label }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setView(id)}
-                    aria-pressed={view === id}
-                    className={`cursor-pointer whitespace-nowrap rounded font-display text-3xl font-semibold tracking-[-0.03em] transition-colors duration-200 [font-stretch:85%] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-bright sm:text-4xl ${
-                      view === id ? "text-foreground" : "text-muted/50 hover:text-muted"
-                    }`}
-                  >
-                    {id === "mvp" ? mvpLabel : label}
-                  </button>
-                ))}
+              {/* Vaated ja värskendusnupp ühel real: telefonis nupp paremas servas, laial ekraanil vaadete järel. */}
+              <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-start sm:gap-6">
+                {/* "Parimad mängijad" (Europe Cup) ei mahu telefonis teistega ühele reale: viimane vaade läheb alla. */}
+                <div role="group" aria-label="Vaade" className="flex flex-wrap items-baseline gap-x-5 gap-y-1 sm:gap-x-7">
+                  {VIEWS.map(({ id, label }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setView(id)}
+                      aria-pressed={view === id}
+                      className={`cursor-pointer whitespace-nowrap rounded font-display text-3xl font-semibold tracking-[-0.03em] transition-colors duration-200 [font-stretch:85%] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-bright sm:text-4xl ${
+                        view === id ? "text-foreground" : "text-muted/50 hover:text-muted"
+                      }`}
+                    >
+                      {id === "mvp" ? mvpLabel : label}
+                    </button>
+                  ))}
+                </div>
+                {/* Tühjendab liiga serveri vahemälu ja laeb kõik vaated uuesti; ikoon pöörleb, kuni uus seis on käes. */}
+                <button
+                  type="button"
+                  onClick={() => refresh.mutate()}
+                  disabled={refresh.isPending}
+                  aria-busy={refresh.isPending}
+                  aria-label="Uuenda andmeid"
+                  title="Uuenda andmeid"
+                  className="liquid-glass grid h-10 w-10 shrink-0 cursor-pointer place-items-center rounded-full text-muted transition-colors duration-200 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-bright disabled:cursor-default sm:h-9 sm:w-9"
+                >
+                  {/* relative: ikoon jääb klaaspilli hägukihi (::before) peale. */}
+                  <RefreshCw className={`relative h-4 w-4 ${refresh.isPending ? "animate-spin" : ""}`} aria-hidden />
+                </button>
               </div>
               {view === "games" && <PeriodSwitch period={period} onChange={setPeriod} />}
             </div>

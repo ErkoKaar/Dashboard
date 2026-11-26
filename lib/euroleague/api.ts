@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { assertCompleteBoxscore } from "@/lib/basketball/boxscore";
-import { fetchJson } from "@/lib/basketball/http";
+import { fetchJson, leagueTag } from "@/lib/basketball/http";
 import { buildLeaders } from "@/lib/basketball/leaders";
 import { groupGameDays } from "@/lib/basketball/period";
 import { ageFrom, averagesOf, PROFILE_GAMES, StatTotals } from "@/lib/basketball/profile";
@@ -30,6 +30,8 @@ import { clubColor } from "./colors";
 // nagu NBA (useNba.ts), nii et kasutajaliides on mõlemal liigal sama. Efektiivsus on PIR.
 
 const API = "https://feeds.incrowdsports.com/provider/euroleague-feeds";
+/** Värskendusnupu silt (lib/basketball/http.ts leagueTag). */
+const TAGS = [leagueTag("euroleague")];
 const COMPETITION = "E";
 // Mänguülevaated: eelistatud MAGENTA SPORT (Saksa ülekandja, ~4 min saksakeelse kommentaariga, aga
 // ainult umbes kolmandik mängudest), ülejäänutele ametlik EuroLeague'i kanal.
@@ -235,7 +237,7 @@ function fetchSeasonGames(season: string): Promise<ElGame[]> {
   // Vaikimisi lehekülg on 50 mängu; hooajas on kuni ~410 (põhiturniir 380 + play-off ja Final Four).
   const games = fetchJson<{ data?: FeedGame[] }>(
     `${API}/v2/competitions/${COMPETITION}/seasons/${season}/games?limit=1000`,
-    { next: { revalidate: 60 } },
+    { next: { revalidate: 60, tags: TAGS } },
   ).then((json) => (json.data ?? []).map(fromFeed));
   // Ebaõnnestunud päringut ei jäeta meelde.
   games.catch(() => seasonMemo.delete(season));
@@ -553,7 +555,7 @@ export async function getMvpRace(): Promise<NbaMvpResponse> {
   const [stats, games] = await Promise.all([
     fetchJson<ElPlayerStats>(
       `${API}/v3/competitions/${COMPETITION}/statistics/players/traditional?seasonMode=Single&seasonCode=${season}&statisticMode=PerGame&limit=1000`,
-      { next: { revalidate: 3600 } },
+      { next: { revalidate: 3600, tags: TAGS } },
     ),
     fetchSeasonGames(season),
   ]);
@@ -666,10 +668,10 @@ export async function getPlayerProfile(code: string): Promise<NbaPlayerProfile |
   const season = currentSeason(new Date());
   const [people, stats] = await Promise.all([
     fetchJson<{ data?: ElPerson[] }>(`${API}/v2/competitions/${COMPETITION}/seasons/${season}/people/${code}`, {
-      next: { revalidate: PROFILE_REVALIDATE },
+      next: { revalidate: PROFILE_REVALIDATE, tags: TAGS },
     }),
     fetchJson<ElPersonGames>(`${API}/v2/competitions/${COMPETITION}/seasons/${season}/people/${code}/stats`, {
-      next: { revalidate: PROFILE_REVALIDATE },
+      next: { revalidate: PROFILE_REVALIDATE, tags: TAGS },
     }),
   ]);
   const entry = people.data?.[0];
@@ -745,7 +747,7 @@ export async function getStandings(): Promise<NbaStandingsResponse> {
 
   const standings = await fetchJson<ElStandings>(
     `${API}/v3/competitions/${COMPETITION}/seasons/${season}/rounds/${round}/basicstandings`,
-    { next: { revalidate: STANDINGS_REVALIDATE } },
+    { next: { revalidate: STANDINGS_REVALIDATE, tags: TAGS } },
   );
   const rows = (standings.teams ?? []).flatMap((team): NbaStandingsRow[] => {
     const club = team.club;

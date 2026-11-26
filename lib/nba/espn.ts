@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { assertCompleteBoxscore } from "@/lib/basketball/boxscore";
 import { buildLeaders } from "@/lib/basketball/leaders";
-import { fetchJson, safeUrl, settleWithLimit } from "@/lib/basketball/http";
+import { fetchJson, leagueTag, safeUrl, settleWithLimit } from "@/lib/basketball/http";
 import { periodDates } from "@/lib/basketball/period";
 import { averagesOf, PROFILE_GAMES, StatTotals } from "@/lib/basketball/profile";
 import { attachRecaps, getChannelVideos, RecapVideo, withDurations } from "@/lib/basketball/youtube";
@@ -32,6 +32,8 @@ const ESPN_NBA = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba";
 
 // Hooaja vaates kuni ~170 mängupäeva: korraga kuni 10 päringut.
 const SCOREBOARD_CONCURRENCY = 10;
+/** Värskendusnupu silt (lib/basketball/http.ts leagueTag). */
+const TAGS = [leagueTag("nba")];
 
 // --- ESPN-i toorkuju (ainult kasutatud väljad, kõik valikulised) ---
 
@@ -247,9 +249,10 @@ function seasonDates(current: EspnScoreboard, today: string): string[] {
 
 async function fetchDay(date: string, today: string): Promise<NbaGameDay> {
   // Üle kahe päeva vanad tulemused enam ei muutu: pikk vahemälu (hooaja vaates ~170 päeva).
-  const revalidate = date < shiftDate(today, -2) ? 86400 : 300;
+  const settled = date < shiftDate(today, -2);
   const board = await espnJson<EspnScoreboard>(`/scoreboard?dates=${date.replaceAll("-", "")}`, {
-    next: { revalidate },
+    // Silt ainult värsketel päevadel: värskendusnupp ei tühjenda hooaja ~170 vana päeva.
+    next: settled ? { revalidate: 86400 } : { revalidate: 300, tags: TAGS },
   });
   return toGameDay(date, board.events ?? []);
 }
@@ -260,7 +263,7 @@ async function fetchDay(date: string, today: string): Promise<NbaGameDay> {
  */
 export async function getGameDays(period: NbaPeriod): Promise<NbaGamesResponse> {
   // Tänane tabel muutub live-mängude ajal: lühike vahemälu.
-  const current = await espnJson<EspnScoreboard>("/scoreboard", { next: { revalidate: 30 } });
+  const current = await espnJson<EspnScoreboard>("/scoreboard", { next: { revalidate: 30, tags: TAGS } });
   const today = current.day?.date;
   if (!today || !/^\d{4}-\d{2}-\d{2}$/.test(today)) {
     throw new Error("ESPN ei andnud tänast mängupäeva");
@@ -456,7 +459,7 @@ async function loadMvpRace(): Promise<NbaMvpResponse> {
   // Bilanss ja tiimivärv on lisainfo: nende viga ei tohi edetabelit maha võtta.
   const [stats, standings, teams] = await Promise.all([
     fetchJson<EspnSeasonStats>(ESPN_SEASON_STATS, { cache: "no-store" }),
-    fetchJson<EspnStandings>(ESPN_STANDINGS, { next: { revalidate: MVP_REVALIDATE } }).catch(() => null),
+    fetchJson<EspnStandings>(ESPN_STANDINGS, { next: { revalidate: MVP_REVALIDATE, tags: TAGS } }).catch(() => null),
     espnJson<EspnTeams>("/teams", { next: { revalidate: 86400 } }).catch(() => null),
   ]);
 
@@ -547,7 +550,7 @@ async function loadMvpRace(): Promise<NbaMvpResponse> {
  * ESPN-i hooaja statistika on ~4 MB ja Next'i andmevahemälu ei salvesta üle 2 MB vastuseid, nii et
  * toores päring käiks igal MVP race'i avamisel uuesti. Vahemällu läheb valmis edetabel, tunniks.
  */
-export const getMvpRace = unstable_cache(loadMvpRace, ["nba-mvp-race-v1"], { revalidate: MVP_REVALIDATE });
+export const getMvpRace = unstable_cache(loadMvpRace, ["nba-mvp-race-v1"], { revalidate: MVP_REVALIDATE, tags: TAGS });
 
 // --- Mängija profiil ---
 
@@ -642,8 +645,8 @@ function gamelogLine(names: string[], stats: string[]): StatTotals {
 /** ESPN-i mängija andmed ja selle hooaja mängulogi (põhiturniir; eelhooaeg ei lähe arvesse nagu mujalgi). */
 export async function getPlayerProfile(id: string): Promise<NbaPlayerProfile | null> {
   const [profile, gamelog] = await Promise.all([
-    fetchJson<EspnAthleteProfile>(`${ESPN_ATHLETES}/${id}`, { next: { revalidate: PROFILE_REVALIDATE } }),
-    fetchJson<EspnGamelog>(`${ESPN_ATHLETES}/${id}/gamelog`, { next: { revalidate: PROFILE_REVALIDATE } }),
+    fetchJson<EspnAthleteProfile>(`${ESPN_ATHLETES}/${id}`, { next: { revalidate: PROFILE_REVALIDATE, tags: TAGS } }),
+    fetchJson<EspnGamelog>(`${ESPN_ATHLETES}/${id}/gamelog`, { next: { revalidate: PROFILE_REVALIDATE, tags: TAGS } }),
   ]);
   const athlete = profile.athlete;
   if (!athlete?.displayName) return null;
@@ -751,7 +754,7 @@ function toStandingsRow(entry: EspnStandingsEntry): NbaStandingsRow | null {
 
 /** Konverentside tabelid asetuse (playoffSeed) järgi; ESPN-i järjestus on muu. */
 export async function getStandings(): Promise<NbaStandingsResponse> {
-  const standings = await fetchJson<EspnStandings>(ESPN_STANDINGS, { next: { revalidate: STANDINGS_REVALIDATE } });
+  const standings = await fetchJson<EspnStandings>(ESPN_STANDINGS, { next: { revalidate: STANDINGS_REVALIDATE, tags: TAGS } });
   const groups = (standings.children ?? []).flatMap((conference): NbaStandingsGroup[] => {
     // ESPN annab hooaja alguses viigis tiimidele sama asetuse (kaks 8., 9. puudub): koht on järjekorranumber.
     const rows = (conference.standings?.entries ?? [])

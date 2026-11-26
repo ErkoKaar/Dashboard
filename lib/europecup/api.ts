@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { assertCompleteBoxscore } from "@/lib/basketball/boxscore";
-import { fetchText, settleWithLimit } from "@/lib/basketball/http";
+import { fetchText, leagueTag, settleWithLimit } from "@/lib/basketball/http";
 import { buildLeaders } from "@/lib/basketball/leaders";
 import { groupGameDays } from "@/lib/basketball/period";
 import { profileFromBoxscores } from "@/lib/basketball/profile";
@@ -33,6 +33,8 @@ import type {
 // tabeleid ja (parimates sooritustes ja mängijates) nende mängijaid. Efektiivsus on FIBA EFF.
 
 const SITE = "https://www.fiba.basketball/en/events";
+/** Värskendusnupu silt (lib/basketball/http.ts leagueTag). */
+const TAGS = [leagueTag("europecup")];
 const ASSETS = "https://assets.fiba.basketball/image/upload";
 const TALLINN = "Europe/Tallinn";
 // Klubid nime järgi: sponsorinimi muutub (Kalev/Cramo -> Bigbank/Kalev), linn jääb.
@@ -274,7 +276,7 @@ let seasonMemo: { at: number; path: string; games: Promise<FibaGame[]> } | null 
 
 function fetchSeasonGames(path: string): Promise<FibaGame[]> {
   if (seasonMemo && seasonMemo.path === path && Date.now() - seasonMemo.at < SEASON_MEMO_MS) return seasonMemo.games;
-  const games = fetchPayload(`${path}/games`, '"gameDateTimeUTC"', { next: { revalidate: 60 } }).then((payload) => {
+  const games = fetchPayload(`${path}/games`, '"gameDateTimeUTC"', { next: { revalidate: 60, tags: TAGS } }).then((payload) => {
     // Lehel on ka teisi "games" massiive (nt järgmine mäng lühendatud kujul): mängukava on suurim.
     const lists = valuesOf(payload, "games").filter((value): value is FibaGame[] => Array.isArray(value));
     const schedule = lists.sort((a, b) => b.length - a.length)[0] ?? [];
@@ -749,7 +751,7 @@ export async function getStandings(): Promise<NbaStandingsResponse> {
   const start = seasonStart(new Date(now));
   const path = eventPath(start);
   const [payload, raw] = await Promise.all([
-    fetchPayload(`${path}/standings`, '{"type":"groups"', { next: { revalidate: STANDINGS_REVALIDATE } }),
+    fetchPayload(`${path}/standings`, '{"type":"groups"', { next: { revalidate: STANDINGS_REVALIDATE, tags: TAGS } }),
     fetchSeasonGames(path),
   ]);
 
